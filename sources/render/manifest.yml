@@ -1,0 +1,791 @@
+name: render
+version: 0.1.0
+dsl_version: 3
+backend: http
+description: >-
+  Query services, deploys, custom domains, projects, and environments from the
+  Render REST API.
+inputs:
+  RENDER_API_BASE:
+    kind: variable
+    default: https://api.render.com/v1
+    hint: Base URL for the Render REST API.
+  RENDER_API_KEY:
+    kind: secret
+    hint: Render API key.
+base_url: "{{input.RENDER_API_BASE}}"
+auth:
+  type: HeaderAuth
+  headers:
+    - name: Authorization
+      from: template
+      template: Bearer {{input.RENDER_API_KEY}}
+request_headers:
+  - name: Accept
+    from: literal
+    value: application/json
+test_queries:
+  - SELECT id, name FROM render.services LIMIT 1
+  - SELECT id, name FROM render.projects LIMIT 1
+tables:
+  - name: services
+    description: Render services visible to the current API key
+    guide: |
+      Start here to inventory services. This table supports optional `cursor`
+      and `limit` filters for manual paging because Render returns page cursors
+      on each row instead of once per response.
+    filters:
+      - name: cursor
+        required: false
+      - name: limit
+        required: false
+    request:
+      method: GET
+      path: /services
+      query:
+        - name: cursor
+          from: filter
+          key: cursor
+        - name: limit
+          from: filter_int
+          key: limit
+    response:
+      rows_path: []
+      allow_404_empty: false
+      row_strategy: direct
+    pagination:
+      mode: none
+    columns:
+      - name: page_cursor
+        type: Utf8
+        nullable: true
+        description: Cursor to pass back to the API when manually paging.
+        expr:
+          kind: path
+          path:
+            - cursor
+      - name: id
+        type: Utf8
+        nullable: false
+        description: Render service ID.
+        expr:
+          kind: path
+          path:
+            - service
+            - id
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Service name.
+        expr:
+          kind: path
+          path:
+            - service
+            - name
+      - name: owner_id
+        type: Utf8
+        nullable: false
+        description: Workspace owner ID for the service.
+        expr:
+          kind: path
+          path:
+            - service
+            - ownerId
+      - name: type
+        type: Utf8
+        nullable: false
+        description: Service type such as web_service or cron_job.
+        expr:
+          kind: path
+          path:
+            - service
+            - type
+      - name: slug
+        type: Utf8
+        nullable: false
+        description: Stable slug for the service.
+        expr:
+          kind: path
+          path:
+            - service
+            - slug
+      - name: environment_id
+        type: Utf8
+        nullable: true
+        description: Project environment ID when the service belongs to one.
+        expr:
+          kind: path
+          path:
+            - service
+            - environmentId
+      - name: repo
+        type: Utf8
+        nullable: true
+        description: Repository URL backing the service, when present.
+        expr:
+          kind: path
+          path:
+            - service
+            - repo
+      - name: branch
+        type: Utf8
+        nullable: true
+        description: Git branch used for deploys, when present.
+        expr:
+          kind: path
+          path:
+            - service
+            - branch
+      - name: dashboard_url
+        type: Utf8
+        nullable: false
+        description: Render dashboard URL for the service.
+        expr:
+          kind: path
+          path:
+            - service
+            - dashboardUrl
+      - name: root_dir
+        type: Utf8
+        nullable: false
+        description: Repository root directory configured for the service.
+        expr:
+          kind: path
+          path:
+            - service
+            - rootDir
+      - name: suspended
+        type: Utf8
+        nullable: false
+        description: Suspension state returned by Render.
+        expr:
+          kind: path
+          path:
+            - service
+            - suspended
+      - name: auto_deploy
+        type: Utf8
+        nullable: false
+        description: Auto-deploy mode.
+        expr:
+          kind: path
+          path:
+            - service
+            - autoDeploy
+      - name: notify_on_fail
+        type: Utf8
+        nullable: false
+        description: Notification behavior for failed deploys.
+        expr:
+          kind: path
+          path:
+            - service
+            - notifyOnFail
+      - name: created_at
+        type: Timestamp
+        nullable: false
+        description: When the service was created.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - service
+              - createdAt
+      - name: updated_at
+        type: Timestamp
+        nullable: false
+        description: When the service was last updated.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - service
+              - updatedAt
+      - name: build_filter
+        type: Json
+        nullable: true
+        description: Build filter configuration, when present.
+        expr:
+          kind: path
+          path:
+            - service
+            - buildFilter
+      - name: registry_credential
+        type: Json
+        nullable: true
+        description: Registry credential summary, when present.
+        expr:
+          kind: path
+          path:
+            - service
+            - registryCredential
+      - name: service_details
+        type: Json
+        nullable: false
+        description: Service-type-specific configuration returned by Render.
+        expr:
+          kind: path
+          path:
+            - service
+            - serviceDetails
+      - name: suspenders
+        type: Json
+        nullable: false
+        description: Suspension reasons returned by Render.
+        expr:
+          kind: path
+          path:
+            - service
+            - suspenders
+
+  - name: deploys
+    description: Deploy history for one Render service
+    guide: |
+      Use this table for deploy history on a specific service. Requires
+      `service_id` from `render.services`. Supports optional `cursor` and
+      `limit` filters for manual paging.
+    filters:
+      - name: service_id
+        required: true
+      - name: cursor
+        required: false
+      - name: limit
+        required: false
+    request:
+      method: GET
+      path: /services/{{filter.service_id}}/deploys
+      query:
+        - name: cursor
+          from: filter
+          key: cursor
+        - name: limit
+          from: filter_int
+          key: limit
+    response:
+      rows_path: []
+      allow_404_empty: false
+      row_strategy: direct
+    pagination:
+      mode: none
+    columns:
+      - name: service_id
+        type: Utf8
+        nullable: false
+        description: Service ID used to scope the deploy lookup.
+        expr:
+          kind: from_filter
+          key: service_id
+      - name: page_cursor
+        type: Utf8
+        nullable: true
+        description: Cursor to pass back to the API when manually paging.
+        expr:
+          kind: path
+          path:
+            - cursor
+      - name: id
+        type: Utf8
+        nullable: false
+        description: Deploy ID.
+        expr:
+          kind: path
+          path:
+            - deploy
+            - id
+      - name: status
+        type: Utf8
+        nullable: true
+        description: Deploy status.
+        expr:
+          kind: path
+          path:
+            - deploy
+            - status
+      - name: trigger
+        type: Utf8
+        nullable: true
+        description: What triggered the deploy.
+        expr:
+          kind: path
+          path:
+            - deploy
+            - trigger
+      - name: commit__id
+        type: Utf8
+        nullable: true
+        description: Commit ID for Git-backed deploys, when present.
+        expr:
+          kind: path
+          path:
+            - deploy
+            - commit
+            - id
+      - name: commit__message
+        type: Utf8
+        nullable: true
+        description: Commit message for Git-backed deploys, when present.
+        expr:
+          kind: path
+          path:
+            - deploy
+            - commit
+            - message
+      - name: commit__created_at
+        type: Timestamp
+        nullable: true
+        description: Commit timestamp for Git-backed deploys, when present.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - deploy
+              - commit
+              - createdAt
+      - name: started_at
+        type: Timestamp
+        nullable: true
+        description: When the deploy started.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - deploy
+              - startedAt
+      - name: finished_at
+        type: Timestamp
+        nullable: true
+        description: When the deploy finished.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - deploy
+              - finishedAt
+      - name: created_at
+        type: Timestamp
+        nullable: true
+        description: When the deploy record was created.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - deploy
+              - createdAt
+      - name: updated_at
+        type: Timestamp
+        nullable: true
+        description: When the deploy record was last updated.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - deploy
+              - updatedAt
+      - name: commit
+        type: Json
+        nullable: true
+        description: Full commit payload for the deploy, when present.
+        expr:
+          kind: path
+          path:
+            - deploy
+            - commit
+      - name: image
+        type: Json
+        nullable: true
+        description: Image payload for image-backed deploys, when present.
+        expr:
+          kind: path
+          path:
+            - deploy
+            - image
+
+  - name: custom_domains
+    description: Custom domains attached to one Render service
+    guide: |
+      Use this table for the custom domains attached to a specific service.
+      Requires `service_id` from `render.services`. Supports optional `cursor`
+      and `limit` filters for manual paging.
+    filters:
+      - name: service_id
+        required: true
+      - name: cursor
+        required: false
+      - name: limit
+        required: false
+    request:
+      method: GET
+      path: /services/{{filter.service_id}}/custom-domains
+      query:
+        - name: cursor
+          from: filter
+          key: cursor
+        - name: limit
+          from: filter_int
+          key: limit
+    response:
+      rows_path: []
+      allow_404_empty: false
+      row_strategy: direct
+    pagination:
+      mode: none
+    columns:
+      - name: service_id
+        type: Utf8
+        nullable: false
+        description: Service ID used to scope the domain lookup.
+        expr:
+          kind: from_filter
+          key: service_id
+      - name: page_cursor
+        type: Utf8
+        nullable: true
+        description: Cursor to pass back to the API when manually paging.
+        expr:
+          kind: path
+          path:
+            - cursor
+      - name: id
+        type: Utf8
+        nullable: false
+        description: Custom domain ID.
+        expr:
+          kind: path
+          path:
+            - customDomain
+            - id
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Custom domain name.
+        expr:
+          kind: path
+          path:
+            - customDomain
+            - name
+      - name: domain_type
+        type: Utf8
+        nullable: false
+        description: Domain type such as apex or subdomain.
+        expr:
+          kind: path
+          path:
+            - customDomain
+            - domainType
+      - name: public_suffix
+        type: Utf8
+        nullable: false
+        description: Public suffix for the domain.
+        expr:
+          kind: path
+          path:
+            - customDomain
+            - publicSuffix
+      - name: redirect_for_name
+        type: Utf8
+        nullable: true
+        description: Domain this record redirects for, when present.
+        expr:
+          kind: path
+          path:
+            - customDomain
+            - redirectForName
+      - name: verification_status
+        type: Utf8
+        nullable: false
+        description: Verification status returned by Render.
+        expr:
+          kind: path
+          path:
+            - customDomain
+            - verificationStatus
+      - name: created_at
+        type: Timestamp
+        nullable: false
+        description: When the custom domain was created.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - customDomain
+              - createdAt
+      - name: server__id
+        type: Utf8
+        nullable: true
+        description: Associated server ID, when present.
+        expr:
+          kind: path
+          path:
+            - customDomain
+            - server
+            - id
+      - name: server__name
+        type: Utf8
+        nullable: true
+        description: Associated server name, when present.
+        expr:
+          kind: path
+          path:
+            - customDomain
+            - server
+            - name
+      - name: server
+        type: Json
+        nullable: true
+        description: Associated server payload, when present.
+        expr:
+          kind: path
+          path:
+            - customDomain
+            - server
+
+  - name: projects
+    description: Render projects visible to the current API key
+    guide: |
+      Use this table to discover Render projects. Supports optional `cursor`
+      and `limit` filters for manual paging.
+    filters:
+      - name: cursor
+        required: false
+      - name: limit
+        required: false
+    request:
+      method: GET
+      path: /projects
+      query:
+        - name: cursor
+          from: filter
+          key: cursor
+        - name: limit
+          from: filter_int
+          key: limit
+    response:
+      rows_path: []
+      allow_404_empty: false
+      row_strategy: direct
+    pagination:
+      mode: none
+    columns:
+      - name: page_cursor
+        type: Utf8
+        nullable: true
+        description: Cursor to pass back to the API when manually paging.
+        expr:
+          kind: path
+          path:
+            - cursor
+      - name: id
+        type: Utf8
+        nullable: false
+        description: Project ID.
+        expr:
+          kind: path
+          path:
+            - project
+            - id
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Project name.
+        expr:
+          kind: path
+          path:
+            - project
+            - name
+      - name: created_at
+        type: Timestamp
+        nullable: false
+        description: When the project was created.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - project
+              - createdAt
+      - name: updated_at
+        type: Timestamp
+        nullable: false
+        description: When the project was last updated.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - project
+              - updatedAt
+      - name: owner
+        type: Json
+        nullable: false
+        description: Workspace owner object for the project.
+        expr:
+          kind: path
+          path:
+            - project
+            - owner
+      - name: environment_ids
+        type: Json
+        nullable: false
+        description: Environment IDs associated with the project.
+        expr:
+          kind: path
+          path:
+            - project
+            - environmentIds
+
+  - name: environments
+    description: Environments for one Render project
+    guide: |
+      Use this table to list environments for a specific project. Requires
+      `project_id` from `render.projects`. Supports optional `cursor` and
+      `limit` filters for manual paging.
+    filters:
+      - name: project_id
+        required: true
+      - name: cursor
+        required: false
+      - name: limit
+        required: false
+    request:
+      method: GET
+      path: /environments
+      query:
+        - name: projectId
+          from: filter
+          key: project_id
+        - name: cursor
+          from: filter
+          key: cursor
+        - name: limit
+          from: filter_int
+          key: limit
+    response:
+      rows_path: []
+      allow_404_empty: false
+      row_strategy: direct
+    pagination:
+      mode: none
+    columns:
+      - name: project_id
+        type: Utf8
+        nullable: false
+        description: Project ID used to scope the environment lookup.
+        expr:
+          kind: from_filter
+          key: project_id
+      - name: page_cursor
+        type: Utf8
+        nullable: true
+        description: Cursor to pass back to the API when manually paging.
+        expr:
+          kind: path
+          path:
+            - cursor
+      - name: id
+        type: Utf8
+        nullable: false
+        description: Environment ID.
+        expr:
+          kind: path
+          path:
+            - environment
+            - id
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Environment name.
+        expr:
+          kind: path
+          path:
+            - environment
+            - name
+      - name: environment__project_id
+        type: Utf8
+        nullable: false
+        description: Project ID attached to the environment object.
+        expr:
+          kind: path
+          path:
+            - environment
+            - projectId
+      - name: protected_status
+        type: Utf8
+        nullable: false
+        description: Protection state returned by Render.
+        expr:
+          kind: path
+          path:
+            - environment
+            - protectedStatus
+      - name: network_isolation_enabled
+        type: Boolean
+        nullable: false
+        description: Whether cross-environment network access is enabled.
+        expr:
+          kind: path
+          path:
+            - environment
+            - networkIsolationEnabled
+      - name: databases_ids
+        type: Json
+        nullable: true
+        description: Database IDs linked to the environment.
+        expr:
+          kind: path
+          path:
+            - environment
+            - databasesIds
+      - name: redis_ids
+        type: Json
+        nullable: true
+        description: Key Value or Redis IDs linked to the environment.
+        expr:
+          kind: path
+          path:
+            - environment
+            - redisIds
+      - name: service_ids
+        type: Json
+        nullable: true
+        description: Service IDs linked to the environment.
+        expr:
+          kind: path
+          path:
+            - environment
+            - serviceIds
+      - name: env_group_ids
+        type: Json
+        nullable: true
+        description: Environment group IDs linked to the environment.
+        expr:
+          kind: path
+          path:
+            - environment
+            - envGroupIds
+      - name: ip_allow_list
+        type: Json
+        nullable: true
+        description: IP allow list configuration, when present.
+        expr:
+          kind: path
+          path:
+            - environment
+            - ipAllowList
