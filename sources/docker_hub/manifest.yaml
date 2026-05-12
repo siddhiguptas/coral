@@ -1,0 +1,860 @@
+name: docker_hub
+version: 0.1.0
+dsl_version: 3
+backend: http
+description: >-
+  Query public Docker Hub repositories, repository details, image tags, and
+  tag metadata from the Docker Hub API.
+base_url: https://hub.docker.com
+request_headers:
+  - name: Accept
+    from: literal
+    value: application/json
+test_queries:
+  - SELECT * FROM docker_hub.repository_details WHERE namespace = 'library' AND repository = 'alpine' LIMIT 1
+tables:
+  - name: search_repositories
+    description: Public Docker Hub repository search results
+    guide: |
+      Requires `query`. Use this table to discover repositories by name or
+      description before querying repository-scoped tables. Results are
+      relevance ordered by Docker Hub.
+    filters:
+      - name: query
+        required: true
+    request:
+      method: GET
+      path: /v2/search/repositories/
+      query:
+        - name: query
+          from: filter
+          key: query
+    response:
+      rows_path:
+        - results
+      row_strategy: direct
+    pagination:
+      mode: page
+      page_size:
+        default: 25
+        max: 100
+        query_param: page_size
+      page_param: page
+      page_start: 1
+      page_step: 1
+    columns:
+      - name: query
+        type: Utf8
+        nullable: false
+        virtual: true
+        description: Search query filter
+        expr:
+          kind: from_filter
+          key: query
+      - name: repo_name
+        type: Utf8
+        nullable: false
+        description: Repository name, without namespace for official images
+        expr:
+          kind: path
+          path:
+            - repo_name
+      - name: short_description
+        type: Utf8
+        nullable: true
+        description: Repository short description
+        expr:
+          kind: path
+          path:
+            - short_description
+      - name: star_count
+        type: Int64
+        nullable: true
+        description: Number of repository stars
+        expr:
+          kind: path
+          path:
+            - star_count
+      - name: pull_count
+        type: Int64
+        nullable: true
+        description: Number of repository pulls
+        expr:
+          kind: path
+          path:
+            - pull_count
+      - name: repo_owner
+        type: Utf8
+        nullable: true
+        description: Repository owner returned by search
+        expr:
+          kind: path
+          path:
+            - repo_owner
+      - name: is_automated
+        type: Boolean
+        nullable: true
+        description: Whether the repository is an automated build
+        expr:
+          kind: path
+          path:
+            - is_automated
+      - name: is_official
+        type: Boolean
+        nullable: true
+        description: Whether the repository is a Docker Official Image
+        expr:
+          kind: path
+          path:
+            - is_official
+  - name: repositories
+    description: Public repositories in a Docker Hub namespace
+    guide: |
+      Requires `namespace`, such as `library` for Docker Official Images or a
+      Docker Hub username or organization. Use `name` values from this table
+      as the `repository` filter for `repository_details`, `tags`, and
+      `tag_details`.
+    filters:
+      - name: namespace
+        required: true
+    request:
+      method: GET
+      path: /v2/namespaces/{{filter.namespace}}/repositories
+    response:
+      rows_path:
+        - results
+      row_strategy: direct
+    pagination:
+      mode: page
+      page_size:
+        default: 25
+        max: 100
+        query_param: page_size
+      page_param: page
+      page_start: 1
+      page_step: 1
+    columns:
+      - name: namespace
+        type: Utf8
+        nullable: false
+        description: Docker Hub namespace filter
+        expr:
+          kind: from_filter
+          key: namespace
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Repository name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: repository_type
+        type: Utf8
+        nullable: true
+        description: Repository type, usually image
+        expr:
+          kind: path
+          path:
+            - repository_type
+      - name: status
+        type: Int64
+        nullable: true
+        description: Repository status code
+        expr:
+          kind: path
+          path:
+            - status
+      - name: status_description
+        type: Utf8
+        nullable: true
+        description: Human-readable repository status
+        expr:
+          kind: path
+          path:
+            - status_description
+      - name: description
+        type: Utf8
+        nullable: true
+        description: Repository short description
+        expr:
+          kind: path
+          path:
+            - description
+      - name: is_private
+        type: Boolean
+        nullable: true
+        description: Whether the repository is private
+        expr:
+          kind: path
+          path:
+            - is_private
+      - name: star_count
+        type: Int64
+        nullable: true
+        description: Number of repository stars
+        expr:
+          kind: path
+          path:
+            - star_count
+      - name: pull_count
+        type: Int64
+        nullable: true
+        description: Number of repository pulls
+        expr:
+          kind: path
+          path:
+            - pull_count
+      - name: last_updated
+        type: Timestamp
+        nullable: true
+        description: Timestamp when the repository was last updated
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - last_updated
+      - name: last_modified
+        type: Timestamp
+        nullable: true
+        description: Timestamp when the repository metadata was last modified
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - last_modified
+      - name: date_registered
+        type: Timestamp
+        nullable: true
+        description: Timestamp when the repository was registered
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - date_registered
+      - name: media_types
+        type: Json
+        nullable: true
+        description: Repository media types as JSON
+        expr:
+          kind: path
+          path:
+            - media_types
+      - name: content_types
+        type: Json
+        nullable: true
+        description: Repository content types as JSON
+        expr:
+          kind: path
+          path:
+            - content_types
+      - name: categories
+        type: Json
+        nullable: true
+        description: Repository categories as JSON
+        expr:
+          kind: path
+          path:
+            - categories
+      - name: storage_size
+        type: Int64
+        nullable: true
+        description: Repository storage size in bytes
+        expr:
+          kind: path
+          path:
+            - storage_size
+  - name: repository_details
+    description: Detailed metadata for one public Docker Hub repository
+    guide: |
+      Requires `namespace` and `repository`. Use this table when you need the
+      full Docker Hub description, permissions, category metadata, or
+      immutable tag settings for one repository.
+    filters:
+      - name: namespace
+        required: true
+      - name: repository
+        required: true
+    request:
+      method: GET
+      path: /v2/namespaces/{{filter.namespace}}/repositories/{{filter.repository}}
+    response:
+      row_strategy: direct
+    columns:
+      - name: namespace
+        type: Utf8
+        nullable: false
+        description: Docker Hub namespace filter
+        expr:
+          kind: from_filter
+          key: namespace
+      - name: repository
+        type: Utf8
+        nullable: false
+        description: Docker Hub repository filter
+        expr:
+          kind: from_filter
+          key: repository
+      - name: user
+        type: Utf8
+        nullable: true
+        description: Repository user or owner
+        expr:
+          kind: path
+          path:
+            - user
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Repository name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: repository_type
+        type: Utf8
+        nullable: true
+        description: Repository type, usually image
+        expr:
+          kind: path
+          path:
+            - repository_type
+      - name: status
+        type: Int64
+        nullable: true
+        description: Repository status code
+        expr:
+          kind: path
+          path:
+            - status
+      - name: status_description
+        type: Utf8
+        nullable: true
+        description: Human-readable repository status
+        expr:
+          kind: path
+          path:
+            - status_description
+      - name: description
+        type: Utf8
+        nullable: true
+        description: Repository short description
+        expr:
+          kind: path
+          path:
+            - description
+      - name: full_description
+        type: Utf8
+        nullable: true
+        description: Repository full README-style description
+        expr:
+          kind: path
+          path:
+            - full_description
+      - name: is_private
+        type: Boolean
+        nullable: true
+        description: Whether the repository is private
+        expr:
+          kind: path
+          path:
+            - is_private
+      - name: is_automated
+        type: Boolean
+        nullable: true
+        description: Whether the repository is an automated build
+        expr:
+          kind: path
+          path:
+            - is_automated
+      - name: star_count
+        type: Int64
+        nullable: true
+        description: Number of repository stars
+        expr:
+          kind: path
+          path:
+            - star_count
+      - name: pull_count
+        type: Int64
+        nullable: true
+        description: Number of repository pulls
+        expr:
+          kind: path
+          path:
+            - pull_count
+      - name: last_updated
+        type: Timestamp
+        nullable: true
+        description: Timestamp when the repository was last updated
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - last_updated
+      - name: last_modified
+        type: Timestamp
+        nullable: true
+        description: Timestamp when the repository metadata was last modified
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - last_modified
+      - name: date_registered
+        type: Timestamp
+        nullable: true
+        description: Timestamp when the repository was registered
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - date_registered
+      - name: collaborator_count
+        type: Int64
+        nullable: true
+        description: Number of collaborators visible in repository metadata
+        expr:
+          kind: path
+          path:
+            - collaborator_count
+      - name: affiliation
+        type: Utf8
+        nullable: true
+        description: Authenticated user's repository affiliation when present
+        expr:
+          kind: path
+          path:
+            - affiliation
+      - name: hub_user
+        type: Utf8
+        nullable: true
+        description: Docker Hub user associated with the repository
+        expr:
+          kind: path
+          path:
+            - hub_user
+      - name: has_starred
+        type: Boolean
+        nullable: true
+        description: Whether the authenticated user has starred the repository
+        expr:
+          kind: path
+          path:
+            - has_starred
+      - name: media_types
+        type: Json
+        nullable: true
+        description: Repository media types as JSON
+        expr:
+          kind: path
+          path:
+            - media_types
+      - name: content_types
+        type: Json
+        nullable: true
+        description: Repository content types as JSON
+        expr:
+          kind: path
+          path:
+            - content_types
+      - name: categories
+        type: Json
+        nullable: true
+        description: Repository categories as JSON
+        expr:
+          kind: path
+          path:
+            - categories
+      - name: immutable_tags_settings
+        type: Json
+        nullable: true
+        description: Immutable tag settings as JSON
+        expr:
+          kind: path
+          path:
+            - immutable_tags_settings
+      - name: permissions
+        type: Json
+        nullable: true
+        description: Repository permissions visible to the request as JSON
+        expr:
+          kind: path
+          path:
+            - permissions
+      - name: storage_size
+        type: Int64
+        nullable: true
+        description: Repository storage size in bytes
+        expr:
+          kind: path
+          path:
+            - storage_size
+  - name: tags
+    description: Image tags for a public Docker Hub repository
+    guide: |
+      Requires `namespace` and `repository`. Use this table to inspect tag
+      digests, pushed times, pulled times, and multi-architecture image
+      metadata. The `images` column contains per-platform entries as JSON.
+    filters:
+      - name: namespace
+        required: true
+      - name: repository
+        required: true
+    request:
+      method: GET
+      path: /v2/namespaces/{{filter.namespace}}/repositories/{{filter.repository}}/tags
+    response:
+      rows_path:
+        - results
+      row_strategy: direct
+    pagination:
+      mode: page
+      page_size:
+        default: 25
+        max: 100
+        query_param: page_size
+      page_param: page
+      page_start: 1
+      page_step: 1
+    columns:
+      - name: namespace
+        type: Utf8
+        nullable: false
+        description: Docker Hub namespace filter
+        expr:
+          kind: from_filter
+          key: namespace
+      - name: repository
+        type: Utf8
+        nullable: false
+        description: Docker Hub repository filter
+        expr:
+          kind: from_filter
+          key: repository
+      - name: id
+        type: Int64
+        nullable: true
+        description: Docker Hub tag ID
+        expr:
+          kind: path
+          path:
+            - id
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Tag name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: creator
+        type: Int64
+        nullable: true
+        description: Docker Hub creator user ID
+        expr:
+          kind: path
+          path:
+            - creator
+      - name: repository_id
+        type: Int64
+        nullable: true
+        description: Docker Hub repository ID
+        expr:
+          kind: path
+          path:
+            - repository
+      - name: digest
+        type: Utf8
+        nullable: true
+        description: Tag digest
+        expr:
+          kind: path
+          path:
+            - digest
+      - name: media_type
+        type: Utf8
+        nullable: true
+        description: OCI or Docker manifest media type
+        expr:
+          kind: path
+          path:
+            - media_type
+      - name: content_type
+        type: Utf8
+        nullable: true
+        description: Docker Hub content type
+        expr:
+          kind: path
+          path:
+            - content_type
+      - name: full_size
+        type: Int64
+        nullable: true
+        description: Full image size in bytes
+        expr:
+          kind: path
+          path:
+            - full_size
+      - name: v2
+        type: Boolean
+        nullable: true
+        description: Whether the tag uses Docker image manifest v2
+        expr:
+          kind: path
+          path:
+            - v2
+      - name: tag_status
+        type: Utf8
+        nullable: true
+        description: Tag status
+        expr:
+          kind: path
+          path:
+            - tag_status
+      - name: tag_last_pulled
+        type: Timestamp
+        nullable: true
+        description: Timestamp when the tag was last pulled
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - tag_last_pulled
+      - name: tag_last_pushed
+        type: Timestamp
+        nullable: true
+        description: Timestamp when the tag was last pushed
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - tag_last_pushed
+      - name: last_updated
+        type: Timestamp
+        nullable: true
+        description: Timestamp when Docker Hub last updated this tag object
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - last_updated
+      - name: last_updater
+        type: Int64
+        nullable: true
+        description: Docker Hub user ID that last updated the tag
+        expr:
+          kind: path
+          path:
+            - last_updater
+      - name: last_updater_username
+        type: Utf8
+        nullable: true
+        description: Docker Hub username that last updated the tag
+        expr:
+          kind: path
+          path:
+            - last_updater_username
+      - name: images
+        type: Json
+        nullable: true
+        description: Per-platform image metadata as JSON
+        expr:
+          kind: path
+          path:
+            - images
+  - name: tag_details
+    description: Detailed metadata for one Docker Hub repository tag
+    guide: |
+      Requires `namespace`, `repository`, and `tag`. Use this table when you
+      need a specific tag's digest, pushed time, image size, and per-platform
+      `images` payload.
+    filters:
+      - name: namespace
+        required: true
+      - name: repository
+        required: true
+      - name: tag
+        required: true
+    request:
+      method: GET
+      path: /v2/namespaces/{{filter.namespace}}/repositories/{{filter.repository}}/tags/{{filter.tag}}
+    response:
+      row_strategy: direct
+    columns:
+      - name: namespace
+        type: Utf8
+        nullable: false
+        description: Docker Hub namespace filter
+        expr:
+          kind: from_filter
+          key: namespace
+      - name: repository
+        type: Utf8
+        nullable: false
+        description: Docker Hub repository filter
+        expr:
+          kind: from_filter
+          key: repository
+      - name: tag
+        type: Utf8
+        nullable: false
+        description: Docker Hub tag filter
+        expr:
+          kind: from_filter
+          key: tag
+      - name: id
+        type: Int64
+        nullable: true
+        description: Docker Hub tag ID
+        expr:
+          kind: path
+          path:
+            - id
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Tag name
+        expr:
+          kind: path
+          path:
+            - name
+      - name: creator
+        type: Int64
+        nullable: true
+        description: Docker Hub creator user ID
+        expr:
+          kind: path
+          path:
+            - creator
+      - name: repository_id
+        type: Int64
+        nullable: true
+        description: Docker Hub repository ID
+        expr:
+          kind: path
+          path:
+            - repository
+      - name: digest
+        type: Utf8
+        nullable: true
+        description: Tag digest
+        expr:
+          kind: path
+          path:
+            - digest
+      - name: media_type
+        type: Utf8
+        nullable: true
+        description: OCI or Docker manifest media type
+        expr:
+          kind: path
+          path:
+            - media_type
+      - name: content_type
+        type: Utf8
+        nullable: true
+        description: Docker Hub content type
+        expr:
+          kind: path
+          path:
+            - content_type
+      - name: full_size
+        type: Int64
+        nullable: true
+        description: Full image size in bytes
+        expr:
+          kind: path
+          path:
+            - full_size
+      - name: v2
+        type: Boolean
+        nullable: true
+        description: Whether the tag uses Docker image manifest v2
+        expr:
+          kind: path
+          path:
+            - v2
+      - name: tag_status
+        type: Utf8
+        nullable: true
+        description: Tag status
+        expr:
+          kind: path
+          path:
+            - tag_status
+      - name: tag_last_pulled
+        type: Timestamp
+        nullable: true
+        description: Timestamp when the tag was last pulled
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - tag_last_pulled
+      - name: tag_last_pushed
+        type: Timestamp
+        nullable: true
+        description: Timestamp when the tag was last pushed
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - tag_last_pushed
+      - name: last_updated
+        type: Timestamp
+        nullable: true
+        description: Timestamp when Docker Hub last updated this tag object
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - last_updated
+      - name: last_updater
+        type: Int64
+        nullable: true
+        description: Docker Hub user ID that last updated the tag
+        expr:
+          kind: path
+          path:
+            - last_updater
+      - name: last_updater_username
+        type: Utf8
+        nullable: true
+        description: Docker Hub username that last updated the tag
+        expr:
+          kind: path
+          path:
+            - last_updater_username
+      - name: images
+        type: Json
+        nullable: true
+        description: Per-platform image metadata as JSON
+        expr:
+          kind: path
+          path:
+            - images
