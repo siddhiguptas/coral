@@ -22,6 +22,7 @@ If the source you need is not available, you can extend Coral by [writing a cust
 | [cloudwatch_metrics](#cloudwatch_metrics) | `http` | Query Amazon CloudWatch metrics and monitoring metadata. |
 | [confluence](#confluence) | `http` | Query spaces, pages, blog posts, comments, attachments, labels, and related metadata from Confluence Cloud. |
 | [datadog](#datadog) | `http` | Query monitors, events, incidents, dashboards, hosts, services, APM dependencies, downtimes, SLOs, synthetic tests, users, logs, spans, and metrics from Datadog. |
+| [discord](#discord) | `http` | Query Discord bot identity, guilds, channels, messages, members, and roles from the Discord REST API. |
 | [github](#github) | `http` | Query repositories, issues, pull requests, workflows, organizations, users, teams, and API metadata from GitHub (Cloud or Enterprise). |
 | [gitlab](#gitlab) | `http` | Query projects, groups, issues, merge requests, pipelines, deployments, packages, users, and instance metadata from GitLab (Cloud or self-hosted). |
 | [grafana](#grafana) | `http` | Query dashboards, folders, datasources, alert rules, annotations, contact points, teams, users, and dashboard panels from Grafana (Cloud or self-hosted). |
@@ -157,6 +158,17 @@ you plan to query (for example monitors, incidents, logs, APM,
 and metrics).
 
 See [Datadog application keys](https://docs.datadoghq.com/account_management/api-app-keys/#application-keys).
+
+### `discord`
+
+`DISCORD_BOT_TOKEN` (required)
+
+Create a Discord application, add a bot user, and copy the bot token
+from the Developer Portal. Invite the bot to the guilds you want to
+query with the `bot` scope and permissions such as View Channels, Read
+Message History, and any guild-specific permissions needed for members
+or moderation data.
+See https://discord.com/developers/applications.
 
 ### `github`
 
