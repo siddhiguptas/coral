@@ -1,0 +1,206 @@
+name: medium
+version: 0.1.0
+dsl_version: 3
+backend: http
+
+description: >-
+  Query authenticated Medium profile info and publication metadata through
+  Medium's API.
+
+inputs:
+  MEDIUM_TOKEN:
+    kind: secret
+    hint: |
+      Medium Integration Token.
+
+      Note: Medium has archived its API documentation and states the API is no
+      longer supported. This source is best-effort and may break if Medium
+      changes or disables these endpoints.
+
+test_queries:
+  - SELECT * FROM medium.me LIMIT 1
+
+base_url: https://api.medium.com/v1
+
+auth:
+  type: HeaderAuth
+  headers:
+    - name: Authorization
+      from: template
+      template: Bearer {{input.MEDIUM_TOKEN}}
+
+tables:
+  - name: me
+    description: Authenticated Medium user profile
+    guide: |
+      Use this table first to confirm the token works and to discover the
+      authenticated user's `id`. Use that `id` as `user_id` for
+      `medium.publications`.
+    request:
+      method: GET
+      path: /me
+
+    response:
+      rows_path:
+        - data
+
+    pagination:
+      mode: none
+
+    columns:
+      - name: id
+        type: Utf8
+        nullable: false
+        description: User ID
+        expr:
+          kind: path
+          path:
+            - id
+
+      - name: username
+        type: Utf8
+        nullable: true
+        description: Medium username (for example majelbstoat)
+        expr:
+          kind: path
+          path:
+            - username
+
+      - name: name
+        type: Utf8
+        nullable: true
+        description: Display name
+        expr:
+          kind: path
+          path:
+            - name
+
+      - name: url
+        type: Utf8
+        nullable: true
+        description: Profile URL
+        expr:
+          kind: path
+          path:
+            - url
+
+      - name: image_url
+        type: Utf8
+        nullable: true
+        description: Profile image URL
+        expr:
+          kind: path
+          path:
+            - imageUrl
+
+  - name: publications
+    description: Publications the authenticated user can access
+    guide: |
+      Requires `user_id` from `medium.me`. This endpoint returns publications
+      where the user is an editor or writer, plus a subset of publications the
+      user follows. The token must include the `listPublications` scope.
+    filters:
+      - name: user_id
+        required: true
+
+    request:
+      method: GET
+      path: /users/{{filter.user_id}}/publications
+
+    response:
+      rows_path:
+        - data
+
+    pagination:
+      mode: none
+
+    columns:
+      - name: id
+        type: Utf8
+        nullable: false
+        description: Publication ID
+        expr:
+          kind: path
+          path:
+            - id
+
+      - name: name
+        type: Utf8
+        nullable: true
+        description: Publication name
+        expr:
+          kind: path
+          path:
+            - name
+
+      - name: description
+        type: Utf8
+        nullable: true
+        description: Publication description
+        expr:
+          kind: path
+          path:
+            - description
+
+      - name: url
+        type: Utf8
+        nullable: true
+        description: Publication URL
+        expr:
+          kind: path
+          path:
+            - url
+
+      - name: image_url
+        type: Utf8
+        nullable: true
+        description: Publication image URL
+        expr:
+          kind: path
+          path:
+            - imageUrl
+
+  - name: publication_contributors
+    description: Contributors with publish access to a publication
+    guide: |
+      Requires `publication_id` from `medium.publications`. Returns contributors
+      and their roles (writer or editor).
+    filters:
+      - name: publication_id
+        required: true
+
+    request:
+      method: GET
+      path: /publications/{{filter.publication_id}}/contributors
+
+    response:
+      rows_path:
+        - data
+
+    pagination:
+      mode: none
+
+    columns:
+      - name: publication_id
+        type: Utf8
+        nullable: false
+        description: Publication ID filter
+        expr:
+          kind: from_filter
+          key: publication_id
+      - name: user_id
+        type: Utf8
+        nullable: false
+        description: Contributor user ID
+        expr:
+          kind: path
+          path:
+            - userId
+      - name: role
+        type: Utf8
+        nullable: true
+        description: Contributor role (writer or editor)
+        expr:
+          kind: path
+          path:
+            - role
