@@ -24,12 +24,13 @@ Inputs:
 - `RENDER_API_BASE`
   - default: `https://api.render.com/v1`
 - `RENDER_API_KEY`
-  - required secret
+  - required secret created in the Render Dashboard Account Settings API Keys page
 
 Add the source:
 
 ```bash
-cargo run --locked -p coral-cli -- source add render
+RENDER_API_KEY='your-render-api-key' \
+  cargo run --locked -p coral-cli -- source add --file sources/community/render/manifest.yaml
 ```
 
 To rotate or update the API key, run the same command again.
@@ -111,15 +112,15 @@ Optional filters:
 From the repo root:
 
 ```bash
-cargo run --locked -p coral-cli -- source lint ./sources/render/manifest.yaml
-make lint-sources
-make docs-check
+cargo run --locked -p coral-cli -- source lint sources/community/render/manifest.yaml
+ryl sources/community/render
 ```
 
 Then install and run the source tests:
 
 ```bash
-cargo run --locked -p coral-cli -- source add render
+RENDER_API_KEY='your-render-api-key' \
+  cargo run --locked -p coral-cli -- source add --file sources/community/render/manifest.yaml
 cargo run --locked -p coral-cli -- source test render
 ```
 
@@ -136,7 +137,7 @@ Inspect columns:
 
 ```bash
 cargo run --locked -p coral-cli -- sql \
-  "SELECT table_name, column_name, type_name, is_required_filter \
+  "SELECT table_name, column_name, data_type, is_required_filter \
    FROM coral.columns \
    WHERE schema_name = 'render' \
    ORDER BY table_name, ordinal_position"

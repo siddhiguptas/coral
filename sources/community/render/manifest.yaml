@@ -9,10 +9,15 @@ inputs:
   RENDER_API_BASE:
     kind: variable
     default: https://api.render.com/v1
-    hint: Base URL for the Render REST API.
+    hint: |
+      Render REST API base URL. Keep the default for Render's public API:
+      https://api.render.com/v1.
   RENDER_API_KEY:
     kind: secret
-    hint: Render API key.
+    hint: |
+      Render API key from the Render Dashboard Account Settings API Keys page.
+      Coral sends it as `Authorization: Bearer <key>`. Treat it as a secret
+      and revoke it in Render if it is exposed.
 base_url: "{{input.RENDER_API_BASE}}"
 auth:
   type: HeaderAuth
@@ -164,9 +169,9 @@ tables:
             - service
             - suspended
       - name: auto_deploy
-        type: Utf8
+        type: Boolean
         nullable: false
-        description: Auto-deploy mode.
+        description: Whether automatic deploys are enabled.
         expr:
           kind: path
           path:
