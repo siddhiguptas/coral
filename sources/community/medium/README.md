@@ -1,16 +1,14 @@
 # Medium Community Source
 
-This community source exposes a small, read-only slice of Medium's API through
-Coral SQL: authenticated user profile info plus publication metadata.
+Query your Medium profile, publications, and publication contributors using
+authenticated access to Medium's API.
 
-Medium has archived its API documentation and states the API is no longer
-supported. This source is best-effort and may break if Medium changes or
-disables these endpoints.
+**Status:** Medium has archived its official API documentation. This source is
+best-effort and may break if Medium changes or disables these endpoints.
 
 ## Setup
 
-1. In your Medium account settings, create an Integration Token (Medium calls
-   these "integration tokens").
+1. In your Medium account settings, create an Integration Token.
 2. Export it as `MEDIUM_TOKEN` or provide it via `--interactive` when adding the
    source.
 
@@ -19,8 +17,9 @@ MEDIUM_TOKEN='...' coral source add --file ./sources/community/medium/manifest.y
 coral source test medium
 ```
 
-The token should include the `basicProfile` scope. To query publications, the
-token must include the `listPublications` scope.
+**Token Scopes:** The token must include the `basicProfile` scope to query your
+profile. Add the `listPublications` scope to also query publications and
+contributors.
 
 ## Example Queries
 

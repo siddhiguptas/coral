@@ -4,18 +4,17 @@ dsl_version: 3
 backend: http
 
 description: >-
-  Query authenticated Medium profile info and publication metadata through
-  Medium's API.
+  Query your Medium profile, publications, and publication contributors
+  using authenticated access to Medium's user-facing API.
 
 inputs:
   MEDIUM_TOKEN:
     kind: secret
     hint: |
-      Medium Integration Token.
+      Medium Integration Token from your account settings.
 
-      Note: Medium has archived its API documentation and states the API is no
-      longer supported. This source is best-effort and may break if Medium
-      changes or disables these endpoints.
+      Requires `basicProfile` scope; add `listPublications` scope to query
+      publications and contributors.
 
 test_queries:
   - SELECT * FROM medium.me LIMIT 1
@@ -60,7 +59,7 @@ tables:
       - name: username
         type: Utf8
         nullable: true
-        description: Medium username (for example majelbstoat)
+        description: Medium username handle
         expr:
           kind: path
           path:
@@ -98,9 +97,10 @@ tables:
     guide: |
       Requires `user_id` from `medium.me`. This endpoint returns publications
       where the user is an editor or writer, plus a subset of publications the
-      user follows. The token must include the `listPublications` scope.
+      user follows.
     filters:
       - name: user_id
+        description: Your Medium user ID (from the `me` table)
         required: true
 
     request:
@@ -167,6 +167,7 @@ tables:
       and their roles (writer or editor).
     filters:
       - name: publication_id
+        description: Publication ID (from the `publications` table)
         required: true
 
     request:
@@ -184,7 +185,7 @@ tables:
       - name: publication_id
         type: Utf8
         nullable: false
-        description: Publication ID filter
+        description: Publication ID (from filter)
         expr:
           kind: from_filter
           key: publication_id
