@@ -11,7 +11,11 @@ request_headers:
     from: literal
     value: application/json
 test_queries:
+  - SELECT * FROM docker_hub.search_repositories WHERE query = 'alpine' LIMIT 1
+  - SELECT * FROM docker_hub.repositories WHERE namespace = 'library' LIMIT 1
   - SELECT * FROM docker_hub.repository_details WHERE namespace = 'library' AND repository = 'alpine' LIMIT 1
+  - SELECT * FROM docker_hub.tags WHERE namespace = 'library' AND repository = 'alpine' LIMIT 1
+  - SELECT * FROM docker_hub.tag_details WHERE namespace = 'library' AND repository = 'alpine' AND tag = 'latest' LIMIT 1
 tables:
   - name: search_repositories
     description: Public Docker Hub repository search results
@@ -274,8 +278,10 @@ tables:
     description: Detailed metadata for one public Docker Hub repository
     guide: |
       Requires `namespace` and `repository`. Use this table when you need the
-      full Docker Hub description, permissions, category metadata, or
-      immutable tag settings for one repository.
+      full Docker Hub description, category metadata, immutable tag settings,
+      or request-context fields for one repository. This source does not send
+      credentials, so fields such as `permissions`, `affiliation`, and
+      `has_starred` describe Docker Hub's unauthenticated response context.
     filters:
       - name: namespace
         required: true
@@ -433,7 +439,7 @@ tables:
       - name: affiliation
         type: Utf8
         nullable: true
-        description: Authenticated user's repository affiliation when present
+        description: Request user's repository affiliation when present
         expr:
           kind: path
           path:
@@ -449,7 +455,7 @@ tables:
       - name: has_starred
         type: Boolean
         nullable: true
-        description: Whether the authenticated user has starred the repository
+        description: Whether the request user has starred the repository
         expr:
           kind: path
           path:
@@ -489,7 +495,7 @@ tables:
       - name: permissions
         type: Json
         nullable: true
-        description: Repository permissions visible to the request as JSON
+        description: Repository permissions visible to the unauthenticated request as JSON
         expr:
           kind: path
           path:
