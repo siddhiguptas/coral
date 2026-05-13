@@ -30,6 +30,8 @@ rate_limit:
   retry_after_header: Retry-After
   remaining_header: X-RateLimit-Remaining
   reset_header: X-RateLimit-Reset
+response_check:
+  ok_status: 200
 test_queries:
   - SELECT * FROM discord.current_user LIMIT 1
 tables:
