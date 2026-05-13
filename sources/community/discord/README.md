@@ -22,6 +22,10 @@ The `members` table requires the **GUILD_MEMBERS** privileged intent to be
 enabled for the bot in the Developer Portal under **Bot** > **Privileged
 Gateway Intents**.
 
+The `messages` table can return empty `content`, `embeds`, `attachments`, and
+other message-content fields unless the bot has the **MESSAGE_CONTENT**
+privileged intent enabled or Discord grants one of its documented exceptions.
+
 **Important:** Treat bot tokens as secrets. If a token is accidentally pasted
 into an issue, pull request, chat, or log, reset it immediately in the Discord
 Developer Portal before using the bot in production.
@@ -38,8 +42,7 @@ Typical rate limits:
 - `members` endpoint: 1 request per 1 second for large guilds
 
 Be cautious when querying `messages` or `members` for large guilds; consider
-using filter cursors (`before`, `after`) to page through results in smaller
-batches.
+using cursor filters to page through results in smaller batches.
 
 ## Schema Overview
 
@@ -57,16 +60,17 @@ batches.
 
 ## Pagination and Cursor Filters
 
-The `messages` and `members` tables use cursor-based pagination. Discord
-returns results in reverse chronological order (newest first) and does not
-include a next-cursor in the response.
+The `messages` and `members` tables use cursor-based pagination. Discord does
+not include a next-cursor in either response, so pagination uses IDs from the
+rows already returned.
 
-To paginate:
-1. Run your query with optional `before`, `after`, or `around` filters
-2. Discord returns up to 100 messages or 1000 members per request
-3. Note the `id` of the first or last row
-4. Pass that `id` as `before` or `after` in your next query
-5. Repeat until you reach the desired result
+For `messages`, Discord returns results in reverse chronological order (newest
+first). Use optional `before`, `after`, or `around` filters with Discord message
+IDs. To fetch older pages from a newest-first batch, pass the oldest message ID
+from the previous result as `before` in your next query.
+
+For `members`, use the optional `after` filter with a Discord user ID cursor to
+request members after that user ID.
 
 Example:
 ```sql
@@ -80,7 +84,7 @@ LIMIT 50;
 SELECT id, timestamp, author__username, content
 FROM discord.messages
 WHERE channel_id = '123456789012345678'
-  AND after = '999888777666555444'
+  AND before = '999888777666555444'
 LIMIT 50;
 ```
 
