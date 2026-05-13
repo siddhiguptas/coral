@@ -1,0 +1,993 @@
+name: hashnode
+version: 0.1.0
+dsl_version: 3
+backend: http
+description: >-
+  Query public Hashnode users, publications, posts, and static pages through
+  the Hashnode GraphQL API.
+base_url: https://gql.hashnode.com
+request_headers:
+  - name: Content-Type
+    from: literal
+    value: application/json
+  - name: Accept
+    from: literal
+    value: application/json
+test_queries:
+  - SELECT id, title FROM hashnode.publications WHERE host = 'blog.developerdao.com' LIMIT 1
+  - SELECT id, title FROM hashnode.publication_posts WHERE host = 'blog.developerdao.com' LIMIT 1
+tables:
+  - name: users
+    description: Public Hashnode user profile by username
+    guide: |
+      Use this table to fetch public profile details for one Hashnode user.
+      Requires `username`.
+    filters:
+      - name: username
+        required: true
+    request:
+      method: POST
+      path: /
+      body:
+        - path:
+            - query
+          from: literal
+          value: |
+            query User($username: String!) {
+              user(username: $username) {
+                id
+                username
+                name
+                profilePicture
+                tagline
+                bio {
+                  text
+                  markdown
+                  html
+                }
+                followersCount
+                followingsCount
+                dateJoined
+                location
+                socialMediaLinks {
+                  website
+                  github
+                  twitter
+                  instagram
+                  facebook
+                  stackoverflow
+                  linkedin
+                  youtube
+                }
+              }
+            }
+        - path:
+            - variables
+            - username
+          from: filter
+          key: username
+    response:
+      rows_path:
+        - data
+        - user
+      row_strategy: direct
+      allow_404_empty: false
+      error_path:
+        - errors
+    pagination:
+      mode: none
+    columns:
+      - name: username_filter
+        type: Utf8
+        nullable: false
+        description: Username used for the lookup.
+        expr:
+          kind: from_filter
+          key: username
+      - name: id
+        type: Utf8
+        nullable: false
+        description: Hashnode user ID.
+        expr:
+          kind: path
+          path:
+            - id
+      - name: username
+        type: Utf8
+        nullable: false
+        description: Hashnode username.
+        expr:
+          kind: path
+          path:
+            - username
+      - name: name
+        type: Utf8
+        nullable: true
+        description: Display name.
+        expr:
+          kind: path
+          path:
+            - name
+      - name: profile_picture
+        type: Utf8
+        nullable: true
+        description: Profile image URL.
+        expr:
+          kind: path
+          path:
+            - profilePicture
+      - name: tagline
+        type: Utf8
+        nullable: true
+        description: User tagline.
+        expr:
+          kind: path
+          path:
+            - tagline
+      - name: bio__text
+        type: Utf8
+        nullable: true
+        description: Plain-text bio.
+        expr:
+          kind: path
+          path:
+            - bio
+            - text
+      - name: bio__markdown
+        type: Utf8
+        nullable: true
+        description: Markdown bio.
+        expr:
+          kind: path
+          path:
+            - bio
+            - markdown
+      - name: followers_count
+        type: Int64
+        nullable: true
+        description: Number of followers.
+        expr:
+          kind: path
+          path:
+            - followersCount
+      - name: followings_count
+        type: Int64
+        nullable: true
+        description: Number of followed users.
+        expr:
+          kind: path
+          path:
+            - followingsCount
+      - name: date_joined
+        type: Timestamp
+        nullable: true
+        description: When the user joined Hashnode.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - dateJoined
+      - name: location
+        type: Utf8
+        nullable: true
+        description: User location.
+        expr:
+          kind: path
+          path:
+            - location
+      - name: social_media_links
+        type: Json
+        nullable: true
+        description: Public social links.
+        expr:
+          kind: path
+          path:
+            - socialMediaLinks
+
+  - name: publications
+    description: Public Hashnode publication metadata by host
+    guide: |
+      Use this table to fetch metadata for one Hashnode publication. Requires
+      `host`, such as `blog.developerdao.com`.
+    filters:
+      - name: host
+        required: true
+    request:
+      method: POST
+      path: /
+      body:
+        - path:
+            - query
+          from: literal
+          value: |
+            query Publication($host: String!) {
+              publication(host: $host) {
+                id
+                isTeam
+                title
+                displayTitle
+                descriptionSEO
+                url
+                canonicalURL
+                favicon
+                about {
+                  markdown
+                  html
+                  text
+                }
+                author {
+                  id
+                  username
+                  name
+                  profilePicture
+                }
+                preferences {
+                  logo
+                  darkMode {
+                    enabled
+                  }
+                  navbarItems {
+                    id
+                    label
+                    url
+                    type
+                  }
+                }
+              }
+            }
+        - path:
+            - variables
+            - host
+          from: filter
+          key: host
+    response:
+      rows_path:
+        - data
+        - publication
+      row_strategy: direct
+      allow_404_empty: false
+      error_path:
+        - errors
+    pagination:
+      mode: none
+    columns:
+      - name: host
+        type: Utf8
+        nullable: false
+        description: Publication host used for the lookup.
+        expr:
+          kind: from_filter
+          key: host
+      - name: id
+        type: Utf8
+        nullable: false
+        description: Publication ID.
+        expr:
+          kind: path
+          path:
+            - id
+      - name: is_team
+        type: Boolean
+        nullable: true
+        description: Whether the publication belongs to a team.
+        expr:
+          kind: path
+          path:
+            - isTeam
+      - name: title
+        type: Utf8
+        nullable: true
+        description: Publication title.
+        expr:
+          kind: path
+          path:
+            - title
+      - name: display_title
+        type: Utf8
+        nullable: true
+        description: Display title configured for the publication.
+        expr:
+          kind: path
+          path:
+            - displayTitle
+      - name: description
+        type: Utf8
+        nullable: true
+        description: SEO description.
+        expr:
+          kind: path
+          path:
+            - descriptionSEO
+      - name: url
+        type: Utf8
+        nullable: true
+        description: Publication URL.
+        expr:
+          kind: path
+          path:
+            - url
+      - name: canonical_url
+        type: Utf8
+        nullable: true
+        description: Canonical publication URL.
+        expr:
+          kind: path
+          path:
+            - canonicalURL
+      - name: favicon
+        type: Utf8
+        nullable: true
+        description: Favicon URL.
+        expr:
+          kind: path
+          path:
+            - favicon
+      - name: about__text
+        type: Utf8
+        nullable: true
+        description: Plain-text about content.
+        expr:
+          kind: path
+          path:
+            - about
+            - text
+      - name: about__markdown
+        type: Utf8
+        nullable: true
+        description: Markdown about content.
+        expr:
+          kind: path
+          path:
+            - about
+            - markdown
+      - name: author__id
+        type: Utf8
+        nullable: true
+        description: Publication author ID.
+        expr:
+          kind: path
+          path:
+            - author
+            - id
+      - name: author__username
+        type: Utf8
+        nullable: true
+        description: Publication author username.
+        expr:
+          kind: path
+          path:
+            - author
+            - username
+      - name: author__name
+        type: Utf8
+        nullable: true
+        description: Publication author display name.
+        expr:
+          kind: path
+          path:
+            - author
+            - name
+      - name: preferences
+        type: Json
+        nullable: true
+        description: Publication preferences and navigation settings.
+        expr:
+          kind: path
+          path:
+            - preferences
+
+  - name: publication_posts
+    description: Posts from a Hashnode publication
+    guide: |
+      Use this table to list posts from one publication. Requires `host`.
+      Pagination is handled through the GraphQL `posts(first, after)`
+      connection.
+    filters:
+      - name: host
+        required: true
+    request:
+      method: POST
+      path: /
+      body:
+        - path:
+            - query
+          from: literal
+          value: |
+            query PublicationPosts($host: String!, $first: Int!, $after: String) {
+              publication(host: $host) {
+                posts(first: $first, after: $after) {
+                  edges {
+                    node {
+                      id
+                      title
+                      subtitle
+                      slug
+                      brief
+                      url
+                      canonicalURL
+                      publishedAt
+                      updatedAt
+                      readTimeInMinutes
+                      views
+                      reactionCount
+                      responseCount
+                      coverImage {
+                        url
+                      }
+                      author {
+                        id
+                        username
+                        name
+                        profilePicture
+                      }
+                      tags {
+                        id
+                        name
+                        slug
+                      }
+                    }
+                  }
+                  pageInfo {
+                    endCursor
+                  }
+                }
+              }
+            }
+        - path:
+            - variables
+            - host
+          from: filter
+          key: host
+        - path:
+            - variables
+            - first
+          from: literal
+          value: 50
+    response:
+      rows_path:
+        - data
+        - publication
+        - posts
+        - edges
+      row_strategy: direct
+      allow_404_empty: false
+      error_path:
+        - errors
+    pagination:
+      mode: cursor_body
+      cursor_body_path:
+        - variables
+        - after
+      response_cursor_path:
+        - data
+        - publication
+        - posts
+        - pageInfo
+        - endCursor
+      page_size:
+        default: 50
+        max: 50
+        body_path:
+          - variables
+          - first
+    columns:
+      - name: host
+        type: Utf8
+        nullable: false
+        description: Publication host used for the lookup.
+        expr:
+          kind: from_filter
+          key: host
+      - name: id
+        type: Utf8
+        nullable: false
+        description: Post ID.
+        expr:
+          kind: path
+          path:
+            - node
+            - id
+      - name: title
+        type: Utf8
+        nullable: true
+        description: Post title.
+        expr:
+          kind: path
+          path:
+            - node
+            - title
+      - name: subtitle
+        type: Utf8
+        nullable: true
+        description: Post subtitle.
+        expr:
+          kind: path
+          path:
+            - node
+            - subtitle
+      - name: slug
+        type: Utf8
+        nullable: true
+        description: Post slug.
+        expr:
+          kind: path
+          path:
+            - node
+            - slug
+      - name: brief
+        type: Utf8
+        nullable: true
+        description: Brief post summary.
+        expr:
+          kind: path
+          path:
+            - node
+            - brief
+      - name: url
+        type: Utf8
+        nullable: true
+        description: Post URL.
+        expr:
+          kind: path
+          path:
+            - node
+            - url
+      - name: canonical_url
+        type: Utf8
+        nullable: true
+        description: Canonical post URL.
+        expr:
+          kind: path
+          path:
+            - node
+            - canonicalURL
+      - name: published_at
+        type: Timestamp
+        nullable: true
+        description: When the post was published.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - node
+              - publishedAt
+      - name: updated_at
+        type: Timestamp
+        nullable: true
+        description: When the post was last updated.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - node
+              - updatedAt
+      - name: read_time_minutes
+        type: Int64
+        nullable: true
+        description: Estimated read time in minutes.
+        expr:
+          kind: path
+          path:
+            - node
+            - readTimeInMinutes
+      - name: views
+        type: Int64
+        nullable: true
+        description: Public view count, when available.
+        expr:
+          kind: path
+          path:
+            - node
+            - views
+      - name: reaction_count
+        type: Int64
+        nullable: true
+        description: Number of reactions.
+        expr:
+          kind: path
+          path:
+            - node
+            - reactionCount
+      - name: response_count
+        type: Int64
+        nullable: true
+        description: Number of responses.
+        expr:
+          kind: path
+          path:
+            - node
+            - responseCount
+      - name: cover_image__url
+        type: Utf8
+        nullable: true
+        description: Cover image URL.
+        expr:
+          kind: path
+          path:
+            - node
+            - coverImage
+            - url
+      - name: author__id
+        type: Utf8
+        nullable: true
+        description: Author ID.
+        expr:
+          kind: path
+          path:
+            - node
+            - author
+            - id
+      - name: author__username
+        type: Utf8
+        nullable: true
+        description: Author username.
+        expr:
+          kind: path
+          path:
+            - node
+            - author
+            - username
+      - name: author__name
+        type: Utf8
+        nullable: true
+        description: Author display name.
+        expr:
+          kind: path
+          path:
+            - node
+            - author
+            - name
+      - name: tags
+        type: Json
+        nullable: true
+        description: Post tags.
+        expr:
+          kind: path
+          path:
+            - node
+            - tags
+
+  - name: publication_post
+    description: Full content for one post in a Hashnode publication
+    guide: |
+      Use this lookup table to fetch full post content by publication `host`
+      and post `slug`.
+    filters:
+      - name: host
+        required: true
+      - name: slug
+        required: true
+    request:
+      method: POST
+      path: /
+      body:
+        - path:
+            - query
+          from: literal
+          value: |
+            query PublicationPost($host: String!, $slug: String!) {
+              publication(host: $host) {
+                post(slug: $slug) {
+                  id
+                  title
+                  subtitle
+                  slug
+                  url
+                  canonicalURL
+                  publishedAt
+                  updatedAt
+                  readTimeInMinutes
+                  content {
+                    markdown
+                    html
+                    text
+                  }
+                  coverImage {
+                    url
+                  }
+                  author {
+                    id
+                    username
+                    name
+                    profilePicture
+                  }
+                  tags {
+                    id
+                    name
+                    slug
+                  }
+                }
+              }
+            }
+        - path:
+            - variables
+            - host
+          from: filter
+          key: host
+        - path:
+            - variables
+            - slug
+          from: filter
+          key: slug
+    response:
+      rows_path:
+        - data
+        - publication
+        - post
+      row_strategy: direct
+      allow_404_empty: false
+      error_path:
+        - errors
+    pagination:
+      mode: none
+    columns:
+      - name: host
+        type: Utf8
+        nullable: false
+        description: Publication host used for the lookup.
+        expr:
+          kind: from_filter
+          key: host
+      - name: slug_filter
+        type: Utf8
+        nullable: false
+        description: Post slug used for the lookup.
+        expr:
+          kind: from_filter
+          key: slug
+      - name: id
+        type: Utf8
+        nullable: false
+        description: Post ID.
+        expr:
+          kind: path
+          path:
+            - id
+      - name: title
+        type: Utf8
+        nullable: true
+        description: Post title.
+        expr:
+          kind: path
+          path:
+            - title
+      - name: subtitle
+        type: Utf8
+        nullable: true
+        description: Post subtitle.
+        expr:
+          kind: path
+          path:
+            - subtitle
+      - name: slug
+        type: Utf8
+        nullable: true
+        description: Current post slug.
+        expr:
+          kind: path
+          path:
+            - slug
+      - name: url
+        type: Utf8
+        nullable: true
+        description: Post URL.
+        expr:
+          kind: path
+          path:
+            - url
+      - name: canonical_url
+        type: Utf8
+        nullable: true
+        description: Canonical post URL.
+        expr:
+          kind: path
+          path:
+            - canonicalURL
+      - name: published_at
+        type: Timestamp
+        nullable: true
+        description: When the post was published.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - publishedAt
+      - name: updated_at
+        type: Timestamp
+        nullable: true
+        description: When the post was last updated.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path:
+              - updatedAt
+      - name: read_time_minutes
+        type: Int64
+        nullable: true
+        description: Estimated read time in minutes.
+        expr:
+          kind: path
+          path:
+            - readTimeInMinutes
+      - name: content__markdown
+        type: Utf8
+        nullable: true
+        description: Markdown post content.
+        expr:
+          kind: path
+          path:
+            - content
+            - markdown
+      - name: content__html
+        type: Utf8
+        nullable: true
+        description: HTML post content.
+        expr:
+          kind: path
+          path:
+            - content
+            - html
+      - name: content__text
+        type: Utf8
+        nullable: true
+        description: Plain-text post content.
+        expr:
+          kind: path
+          path:
+            - content
+            - text
+      - name: cover_image__url
+        type: Utf8
+        nullable: true
+        description: Cover image URL.
+        expr:
+          kind: path
+          path:
+            - coverImage
+            - url
+      - name: author
+        type: Json
+        nullable: true
+        description: Post author object.
+        expr:
+          kind: path
+          path:
+            - author
+      - name: tags
+        type: Json
+        nullable: true
+        description: Post tags.
+        expr:
+          kind: path
+          path:
+            - tags
+
+  - name: static_pages
+    description: Static page content for a Hashnode publication
+    guide: |
+      Use this lookup table to fetch a static page by publication `host` and
+      page `slug`, for example an about page.
+    filters:
+      - name: host
+        required: true
+      - name: slug
+        required: true
+    request:
+      method: POST
+      path: /
+      body:
+        - path:
+            - query
+          from: literal
+          value: |
+            query StaticPage($host: String!, $slug: String!) {
+              publication(host: $host) {
+                staticPage(slug: $slug) {
+                  id
+                  title
+                  slug
+                  content {
+                    markdown
+                    html
+                    text
+                  }
+                }
+              }
+            }
+        - path:
+            - variables
+            - host
+          from: filter
+          key: host
+        - path:
+            - variables
+            - slug
+          from: filter
+          key: slug
+    response:
+      rows_path:
+        - data
+        - publication
+        - staticPage
+      row_strategy: direct
+      allow_404_empty: false
+      error_path:
+        - errors
+    pagination:
+      mode: none
+    columns:
+      - name: host
+        type: Utf8
+        nullable: false
+        description: Publication host used for the lookup.
+        expr:
+          kind: from_filter
+          key: host
+      - name: slug_filter
+        type: Utf8
+        nullable: false
+        description: Static page slug used for the lookup.
+        expr:
+          kind: from_filter
+          key: slug
+      - name: id
+        type: Utf8
+        nullable: true
+        description: Static page ID, when returned.
+        expr:
+          kind: path
+          path:
+            - id
+      - name: title
+        type: Utf8
+        nullable: true
+        description: Static page title.
+        expr:
+          kind: path
+          path:
+            - title
+      - name: slug
+        type: Utf8
+        nullable: true
+        description: Static page slug.
+        expr:
+          kind: path
+          path:
+            - slug
+      - name: content__markdown
+        type: Utf8
+        nullable: true
+        description: Markdown page content.
+        expr:
+          kind: path
+          path:
+            - content
+            - markdown
+      - name: content__html
+        type: Utf8
+        nullable: true
+        description: HTML page content.
+        expr:
+          kind: path
+          path:
+            - content
+            - html
+      - name: content__text
+        type: Utf8
+        nullable: true
+        description: Plain-text page content.
+        expr:
+          kind: path
+          path:
+            - content
+            - text
