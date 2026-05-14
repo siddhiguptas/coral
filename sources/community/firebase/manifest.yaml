@@ -1,0 +1,540 @@
+dsl_version: 3
+name: firebase
+version: 0.1.0
+backend: http
+description: >-
+  Query Firebase projects, apps, and analytics linkage details from Firebase.
+inputs:
+  FIREBASE_ACCESS_TOKEN:
+    kind: secret
+    hint: |
+      Google OAuth 2.0 access token for Firebase Management API calls.
+      Use a token with the `https://www.googleapis.com/auth/firebase.readonly`
+      scope for read-only access, or
+      `https://www.googleapis.com/auth/cloud-platform.read-only` when your
+      organization manages access through broader Google Cloud permissions.
+      For local testing, you can generate one with:
+      `gcloud auth print-access-token`.
+base_url: https://firebase.googleapis.com
+auth:
+  type: HeaderAuth
+  headers:
+    - name: Authorization
+      from: template
+      template: Bearer {{input.FIREBASE_ACCESS_TOKEN}}
+request_headers:
+  - name: Accept
+    from: literal
+    value: application/json
+test_queries:
+  - SELECT * FROM firebase.projects LIMIT 1
+tables:
+  - name: projects
+    description: Firebase projects accessible to the authenticated caller
+    guide: |
+      Start here to discover `project_id` and `project_number` values for
+      project-scoped tables. The Firebase API returns projects in no
+      particular order and may be eventually consistent after mutations.
+    request:
+      method: GET
+      path: /v1beta1/projects
+    response:
+      rows_path:
+        - results
+      row_strategy: direct
+    pagination:
+      mode: cursor_query
+      cursor_param: pageToken
+      response_cursor_path:
+        - nextPageToken
+      page_size:
+        default: 100
+        max: 100
+        query_param: pageSize
+    columns:
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Firebase project resource name, usually `projects/{project_id}`
+        expr: {kind: path, path: [name]}
+      - name: project_id
+        type: Utf8
+        nullable: true
+        description: Google Cloud project ID
+        expr: {kind: path, path: [projectId]}
+      - name: project_number
+        type: Utf8
+        nullable: true
+        description: Google Cloud project number
+        expr: {kind: path, path: [projectNumber]}
+      - name: display_name
+        type: Utf8
+        nullable: true
+        description: User-assigned display name
+        expr: {kind: path, path: [displayName]}
+      - name: state
+        type: Utf8
+        nullable: true
+        description: Project lifecycle state
+        expr: {kind: path, path: [state]}
+      - name: etag
+        type: Utf8
+        nullable: true
+        description: Entity tag for the project record
+        expr: {kind: path, path: [etag]}
+      - name: resources
+        type: Json
+        nullable: true
+        description: Default Firebase resources such as hosting site, storage bucket, or database instance
+        expr: {kind: path, path: [resources]}
+
+  - name: project
+    description: A single Firebase project by project ID or project number
+    guide: |
+      Use this table when you already know the project identifier and want a
+      consistent read for that project.
+    filters:
+      - name: project_id
+        required: true
+    request:
+      method: GET
+      path: /v1beta1/projects/{{filter.project_id}}
+    response: {}
+    pagination:
+      mode: none
+    columns:
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Firebase project resource name, usually `projects/{project_id}`
+        expr: {kind: path, path: [name]}
+      - name: project_id
+        type: Utf8
+        nullable: true
+        description: Google Cloud project ID
+        expr: {kind: path, path: [projectId]}
+      - name: project_number
+        type: Utf8
+        nullable: true
+        description: Google Cloud project number
+        expr: {kind: path, path: [projectNumber]}
+      - name: display_name
+        type: Utf8
+        nullable: true
+        description: User-assigned display name
+        expr: {kind: path, path: [displayName]}
+      - name: state
+        type: Utf8
+        nullable: true
+        description: Project lifecycle state
+        expr: {kind: path, path: [state]}
+      - name: etag
+        type: Utf8
+        nullable: true
+        description: Entity tag for the project record
+        expr: {kind: path, path: [etag]}
+      - name: resources
+        type: Json
+        nullable: true
+        description: Default Firebase resources such as hosting site, storage bucket, or database instance
+        expr: {kind: path, path: [resources]}
+      - name: requested_project_id
+        type: Utf8
+        nullable: true
+        virtual: true
+        description: Project identifier used in the request
+        expr: {kind: from_filter, key: project_id}
+
+  - name: android_apps
+    description: Android apps registered in a Firebase project
+    guide: |
+      Requires `project_id`. Join from `firebase.projects.project_id`, or pass
+      your known Firebase project ID or project number.
+    filters:
+      - name: project_id
+        required: true
+      - name: show_deleted
+        required: false
+    request:
+      method: GET
+      path: /v1beta1/projects/{{filter.project_id}}/androidApps
+      query:
+        - name: showDeleted
+          from: filter_bool
+          key: show_deleted
+    response:
+      rows_path:
+        - apps
+      row_strategy: direct
+    pagination:
+      mode: cursor_query
+      cursor_param: pageToken
+      response_cursor_path:
+        - nextPageToken
+      page_size:
+        default: 100
+        max: 100
+        query_param: pageSize
+    columns:
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Android app resource name
+        expr: {kind: path, path: [name]}
+      - name: app_id
+        type: Utf8
+        nullable: true
+        description: Firebase app ID
+        expr: {kind: path, path: [appId]}
+      - name: display_name
+        type: Utf8
+        nullable: true
+        description: User-assigned app display name
+        expr: {kind: path, path: [displayName]}
+      - name: project_id
+        type: Utf8
+        nullable: true
+        virtual: true
+        description: Project identifier used in the request
+        expr: {kind: from_filter, key: project_id}
+      - name: package_name
+        type: Utf8
+        nullable: true
+        description: Android package name
+        expr: {kind: path, path: [packageName]}
+      - name: api_key_id
+        type: Utf8
+        nullable: true
+        description: API key ID associated with the app
+        expr: {kind: path, path: [apiKeyId]}
+      - name: state
+        type: Utf8
+        nullable: true
+        description: App lifecycle state
+        expr: {kind: path, path: [state]}
+      - name: show_deleted
+        type: Boolean
+        nullable: true
+        virtual: true
+        description: Whether deleted apps were requested
+        expr: {kind: from_filter, key: show_deleted}
+      - name: expire_time
+        type: Timestamp
+        nullable: true
+        description: Time when a removed app expires, if applicable
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr: {kind: path, path: [expireTime]}
+
+  - name: ios_apps
+    description: iOS apps registered in a Firebase project
+    guide: |
+      Requires `project_id`. Join from `firebase.projects.project_id`, or pass
+      your known Firebase project ID or project number.
+    filters:
+      - name: project_id
+        required: true
+      - name: show_deleted
+        required: false
+    request:
+      method: GET
+      path: /v1beta1/projects/{{filter.project_id}}/iosApps
+      query:
+        - name: showDeleted
+          from: filter_bool
+          key: show_deleted
+    response:
+      rows_path:
+        - apps
+      row_strategy: direct
+    pagination:
+      mode: cursor_query
+      cursor_param: pageToken
+      response_cursor_path:
+        - nextPageToken
+      page_size:
+        default: 100
+        max: 100
+        query_param: pageSize
+    columns:
+      - name: name
+        type: Utf8
+        nullable: false
+        description: iOS app resource name
+        expr: {kind: path, path: [name]}
+      - name: app_id
+        type: Utf8
+        nullable: true
+        description: Firebase app ID
+        expr: {kind: path, path: [appId]}
+      - name: display_name
+        type: Utf8
+        nullable: true
+        description: User-assigned app display name
+        expr: {kind: path, path: [displayName]}
+      - name: project_id
+        type: Utf8
+        nullable: true
+        virtual: true
+        description: Project identifier used in the request
+        expr: {kind: from_filter, key: project_id}
+      - name: bundle_id
+        type: Utf8
+        nullable: true
+        description: Apple bundle ID
+        expr: {kind: path, path: [bundleId]}
+      - name: app_store_id
+        type: Utf8
+        nullable: true
+        description: Apple App Store ID
+        expr: {kind: path, path: [appStoreId]}
+      - name: team_id
+        type: Utf8
+        nullable: true
+        description: Apple Developer Team ID
+        expr: {kind: path, path: [teamId]}
+      - name: api_key_id
+        type: Utf8
+        nullable: true
+        description: API key ID associated with the app
+        expr: {kind: path, path: [apiKeyId]}
+      - name: state
+        type: Utf8
+        nullable: true
+        description: App lifecycle state
+        expr: {kind: path, path: [state]}
+      - name: show_deleted
+        type: Boolean
+        nullable: true
+        virtual: true
+        description: Whether deleted apps were requested
+        expr: {kind: from_filter, key: show_deleted}
+      - name: expire_time
+        type: Timestamp
+        nullable: true
+        description: Time when a removed app expires, if applicable
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr: {kind: path, path: [expireTime]}
+
+  - name: web_apps
+    description: Web apps registered in a Firebase project
+    guide: |
+      Requires `project_id`. Join from `firebase.projects.project_id`, or pass
+      your known Firebase project ID or project number.
+    filters:
+      - name: project_id
+        required: true
+      - name: show_deleted
+        required: false
+    request:
+      method: GET
+      path: /v1beta1/projects/{{filter.project_id}}/webApps
+      query:
+        - name: showDeleted
+          from: filter_bool
+          key: show_deleted
+    response:
+      rows_path:
+        - apps
+      row_strategy: direct
+    pagination:
+      mode: cursor_query
+      cursor_param: pageToken
+      response_cursor_path:
+        - nextPageToken
+      page_size:
+        default: 100
+        max: 100
+        query_param: pageSize
+    columns:
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Web app resource name
+        expr: {kind: path, path: [name]}
+      - name: app_id
+        type: Utf8
+        nullable: true
+        description: Firebase app ID
+        expr: {kind: path, path: [appId]}
+      - name: display_name
+        type: Utf8
+        nullable: true
+        description: User-assigned app display name
+        expr: {kind: path, path: [displayName]}
+      - name: project_id
+        type: Utf8
+        nullable: true
+        virtual: true
+        description: Project identifier used in the request
+        expr: {kind: from_filter, key: project_id}
+      - name: app_urls
+        type: Json
+        nullable: true
+        description: URLs associated with the web app
+        expr: {kind: path, path: [appUrls]}
+      - name: api_key_id
+        type: Utf8
+        nullable: true
+        description: API key ID associated with the app
+        expr: {kind: path, path: [apiKeyId]}
+      - name: state
+        type: Utf8
+        nullable: true
+        description: App lifecycle state
+        expr: {kind: path, path: [state]}
+      - name: show_deleted
+        type: Boolean
+        nullable: true
+        virtual: true
+        description: Whether deleted apps were requested
+        expr: {kind: from_filter, key: show_deleted}
+      - name: expire_time
+        type: Timestamp
+        nullable: true
+        description: Time when a removed app expires, if applicable
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr: {kind: path, path: [expireTime]}
+
+  - name: project_apps
+    description: All apps registered in a Firebase project across supported platforms
+    guide: |
+      Requires `project_id`. Use this table for a platform-agnostic inventory
+      of Android, iOS, and web apps in a Firebase project. Use `filter` for
+      Firebase's AIP-160 app search syntax, such as `platform=ANDROID`.
+    filters:
+      - name: project_id
+        required: true
+      - name: filter
+        required: false
+        mode: search
+      - name: show_deleted
+        required: false
+    request:
+      method: GET
+      path: /v1beta1/projects/{{filter.project_id}}:searchApps
+      query:
+        - name: filter
+          from: filter
+          key: filter
+        - name: showDeleted
+          from: filter_bool
+          key: show_deleted
+    response:
+      rows_path:
+        - apps
+      row_strategy: direct
+    pagination:
+      mode: cursor_query
+      cursor_param: pageToken
+      response_cursor_path:
+        - nextPageToken
+      page_size:
+        default: 100
+        max: 100
+        query_param: pageSize
+    columns:
+      - name: name
+        type: Utf8
+        nullable: false
+        description: Firebase app resource name
+        expr: {kind: path, path: [name]}
+      - name: app_id
+        type: Utf8
+        nullable: true
+        description: Firebase app ID
+        expr: {kind: path, path: [appId]}
+      - name: display_name
+        type: Utf8
+        nullable: true
+        description: User-assigned app display name
+        expr: {kind: path, path: [displayName]}
+      - name: platform
+        type: Utf8
+        nullable: true
+        description: App platform
+        expr: {kind: path, path: [platform]}
+      - name: namespace
+        type: Utf8
+        nullable: true
+        description: Platform-specific identifier for the app
+        expr: {kind: path, path: [namespace]}
+      - name: api_key_id
+        type: Utf8
+        nullable: true
+        description: API key ID associated with the app
+        expr: {kind: path, path: [apiKeyId]}
+      - name: state
+        type: Utf8
+        nullable: true
+        description: App lifecycle state
+        expr: {kind: path, path: [state]}
+      - name: expire_time
+        type: Timestamp
+        nullable: true
+        description: Time when a removed app expires, if applicable
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr: {kind: path, path: [expireTime]}
+      - name: project_id
+        type: Utf8
+        nullable: true
+        virtual: true
+        description: Project identifier used in the request
+        expr: {kind: from_filter, key: project_id}
+      - name: filter
+        type: Utf8
+        nullable: true
+        virtual: true
+        description: Firebase app search filter used in the request
+        expr: {kind: from_filter, key: filter}
+      - name: show_deleted
+        type: Boolean
+        nullable: true
+        virtual: true
+        description: Whether deleted apps were requested
+        expr: {kind: from_filter, key: show_deleted}
+      - name: app
+        type: Json
+        nullable: true
+        description: Raw app payload
+        expr: {kind: path, path: []}
+
+  - name: analytics_details
+    description: Google Analytics linkage details for a Firebase project
+    guide: |
+      Requires `project_id`. This table returns a row only when the Firebase
+      project is linked to Google Analytics and the caller can view the link.
+    filters:
+      - name: project_id
+        required: true
+    request:
+      method: GET
+      path: /v1beta1/projects/{{filter.project_id}}/analyticsDetails
+    response:
+      allow_404_empty: true
+    pagination:
+      mode: none
+    columns:
+      - name: project_id
+        type: Utf8
+        nullable: true
+        virtual: true
+        description: Project identifier used in the request
+        expr: {kind: from_filter, key: project_id}
+      - name: analytics_property
+        type: Utf8
+        nullable: true
+        description: Linked Google Analytics property resource name
+        expr: {kind: path, path: [analyticsProperty]}
+      - name: stream_mappings
+        type: Json
+        nullable: true
+        description: Mappings between Firebase apps and Google Analytics data streams
+        expr: {kind: path, path: [streamMappings]}
