@@ -47,7 +47,7 @@ Collections are grouped API workflows, requests, tests, and documentation. This 
 
 **Example:**
 ```sql
-SELECT name, owner_name, workspace_id 
+SELECT name, owner_id, workspace_id 
 FROM postman.collections 
 WHERE workspace_id = 'your-workspace-id'
 ```
