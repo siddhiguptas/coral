@@ -38,7 +38,7 @@ tables:
       method: GET
       path: /me
     response:
-      rows_path: []
+      rows_path: [user]
     columns:
       - name: user_id
         type: Int64
@@ -203,34 +203,27 @@ tables:
         expr:
           kind: path
           path: [uid]
-      - name: name
-        type: Utf8
-        nullable: false
-        description: Collection name
-        expr:
-          kind: path
-          path: [name]
-      - name: owner_id
-        type: Int64
-        nullable: true
-        description: Owner user ID (flattened from owner object)
-        expr:
-          kind: path
-          path: [owner, id]
-      - name: owner_name
-        type: Utf8
-        nullable: true
-        description: Owner username (flattened from owner object)
-        expr:
-          kind: path
-          path: [owner, username]
-      - name: workspace_id
-        type: Utf8
-        nullable: true
-        description: Parent workspace ID (flattened from workspace)
-        expr:
-          kind: path
-          path: [workspace, id]
+       - name: name
+         type: Utf8
+         nullable: false
+         description: Collection name
+         expr:
+           kind: path
+           path: [name]
+       - name: owner_id
+         type: Int64
+         nullable: true
+         description: Owner user ID
+         expr:
+           kind: path
+           path: [owner]
+       - name: workspace_id
+         type: Utf8
+         nullable: true
+         description: Parent workspace ID
+         expr:
+           kind: path
+           path: [workspace]
       - name: created_at
         type: Timestamp
         nullable: true
@@ -332,13 +325,13 @@ tables:
         expr:
           kind: path
           path: [request, method]
-      - name: url
-        type: Utf8
-        nullable: true
-        description: Request URL (flattened from request object)
-        expr:
-          kind: path
-          path: [request, url, raw]
+       - name: url
+         type: Utf8
+         nullable: true
+         description: Request URL string or raw URL
+         expr:
+           kind: path
+           path: [request, url]
       - name: description
         type: Utf8
         nullable: true
@@ -431,55 +424,48 @@ tables:
         expr:
           kind: path
           path: [uid]
-      - name: name
-        type: Utf8
-        nullable: false
-        description: Environment name
-        expr:
-          kind: path
-          path: [name]
-      - name: owner_id
-        type: Int64
-        nullable: true
-        description: Owner user ID (flattened from owner object)
-        expr:
-          kind: path
-          path: [owner, id]
-      - name: owner_name
-        type: Utf8
-        nullable: true
-        description: Owner username (flattened from owner object)
-        expr:
-          kind: path
-          path: [owner, username]
-      - name: workspace_id
-        type: Utf8
-        nullable: true
-        description: Parent workspace ID (flattened from workspace)
-        expr:
-          kind: path
-          path: [workspace, id]
-      - name: created_at
-        type: Timestamp
-        nullable: true
-        description: Environment creation timestamp (ISO 8601)
-        expr:
-          kind: path
-          path: [createdAt]
-      - name: updated_at
-        type: Timestamp
-        nullable: true
-        description: Environment last updated timestamp (ISO 8601)
-        expr:
-          kind: path
-          path: [updatedAt]
-      - name: variables
-        type: Struct
-        nullable: true
-        description: Environment variables (JSON structure). Secret values are masked in v1.
-        expr:
-          kind: path
-          path: [value]
+       - name: name
+         type: Utf8
+         nullable: false
+         description: Environment name
+         expr:
+           kind: path
+           path: [name]
+       - name: owner_id
+         type: Int64
+         nullable: true
+         description: Owner user ID
+         expr:
+           kind: path
+           path: [owner]
+       - name: workspace_id
+         type: Utf8
+         nullable: true
+         description: Parent workspace ID
+         expr:
+           kind: path
+           path: [workspace]
+       - name: created_at
+         type: Timestamp
+         nullable: true
+         description: Environment creation timestamp (ISO 8601)
+         expr:
+           kind: path
+           path: [createdAt]
+       - name: updated_at
+         type: Timestamp
+         nullable: true
+         description: Environment last updated timestamp (ISO 8601)
+         expr:
+           kind: path
+           path: [updatedAt]
+       - name: variables
+         type: Struct
+         nullable: true
+         description: Environment variables (JSON structure). Secret values are masked in v1.
+         expr:
+           kind: path
+           path: [values]
 
   - name: monitors
     description: API monitors configured for continuous testing and health checking. Enables API reliability analytics and incident summarization. Important for API governance workflows.
