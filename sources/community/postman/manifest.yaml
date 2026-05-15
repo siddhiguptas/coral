@@ -102,12 +102,13 @@ tables:
     response:
       rows_path: [workspaces]
     pagination:
-      mode: offset
-      offset_param: offset
+      mode: cursor_query
       page_size:
         default: 25
         max: 100
         query_param: limit
+      cursor_param: cursor
+      response_cursor_path: [meta, nextCursor]
     columns:
       - name: id
         type: Utf8
@@ -278,12 +279,7 @@ tables:
       rows_path: [collection, item]
       allow_404_empty: true
     pagination:
-      mode: offset
-      offset_param: offset
-      page_size:
-        default: 25
-        max: 100
-        query_param: limit
+      mode: none
     columns:
       - name: id
         type: Utf8
@@ -325,8 +321,12 @@ tables:
         nullable: true
         description: Request description
         expr:
-          kind: path
-          path: [request, description]
+          kind: coalesce
+          exprs:
+            - kind: path
+              path: [request, description, content]
+            - kind: path
+              path: [request, description]
       - name: protocol
         type: Utf8
         nullable: true
@@ -382,12 +382,7 @@ tables:
     response:
       rows_path: [environments]
     pagination:
-      mode: offset
-      offset_param: offset
-      page_size:
-        default: 25
-        max: 100
-        query_param: limit
+      mode: none
     columns:
       - name: id
         type: Utf8
@@ -444,13 +439,6 @@ tables:
           expr:
             kind: path
             path: [updatedAt]
-      - name: variables
-        type: Json
-        nullable: true
-        description: "Environment variables (JSON structure). Note: the Postman API returns secret values as plaintext."
-        expr:
-          kind: path
-          path: [values]
 
   - name: monitors
     description: >-
@@ -464,12 +452,13 @@ tables:
     response:
       rows_path: [monitors]
     pagination:
-      mode: offset
-      offset_param: offset
+      mode: cursor_query
       page_size:
         default: 25
-        max: 100
+        max: 25
         query_param: limit
+      cursor_param: cursor
+      response_cursor_path: [meta, nextCursor]
     columns:
       - name: id
         type: Utf8
