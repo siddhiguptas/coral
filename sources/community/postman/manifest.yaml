@@ -91,25 +91,18 @@ tables:
           path: [isPublic]
 
   - name: workspaces
-    description: Postman workspaces accessible to the authenticated user. Workspaces are top-level organizational entities containing collections, environments, and monitors.
+    description: >-
+      Postman workspaces accessible to the authenticated user. Workspaces are
+      top-level organizational entities containing collections, environments,
+      and monitors.
     fetch_limit_default: 25
     request:
       method: GET
       path: /workspaces
-      query:
-        - name: limit
-          from: limit
-        - name: offset
-          from: offset
     response:
       rows_path: [workspaces]
     pagination:
-      mode: offset
-      offset_param: offset
-      page_size:
-        default: 25
-        max: 100
-        query_param: limit
+      mode: none
     columns:
       - name: id
         type: Utf8
@@ -151,15 +144,21 @@ tables:
         nullable: true
         description: Workspace creation timestamp (ISO 8601)
         expr:
-          kind: path
-          path: [createdAt]
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [createdAt]
       - name: updated_at
         type: Timestamp
         nullable: true
         description: Workspace last updated timestamp (ISO 8601)
         expr:
-          kind: path
-          path: [updatedAt]
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [updatedAt]
       - name: is_personal_workspace
         type: Boolean
         nullable: true
@@ -169,25 +168,18 @@ tables:
           path: [isPersonal]
 
   - name: collections
-    description: Collections from Postman workspaces. Contains API requests, tests, and documentation grouped by workflow. High-value table for API inventory analysis.
+    description: >-
+      Collections from Postman workspaces. Contains API requests, tests, and
+      documentation grouped by workflow. High-value table for API inventory
+      analysis.
     fetch_limit_default: 25
     request:
       method: GET
       path: /collections
-      query:
-        - name: limit
-          from: limit
-        - name: offset
-          from: offset
     response:
       rows_path: [collections]
     pagination:
-      mode: offset
-      offset_param: offset
-      page_size:
-        default: 25
-        max: 100
-        query_param: limit
+      mode: none
     columns:
       - name: id
         type: Utf8
@@ -229,15 +221,21 @@ tables:
         nullable: true
         description: Collection creation timestamp (ISO 8601)
         expr:
-          kind: path
-          path: [createdAt]
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [createdAt]
       - name: updated_at
         type: Timestamp
         nullable: true
         description: Collection last updated timestamp (ISO 8601)
         expr:
-          kind: path
-          path: [updatedAt]
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [updatedAt]
       - name: is_public
         type: Boolean
         nullable: true
@@ -252,54 +250,29 @@ tables:
         expr:
           kind: path
           path: [fork]
-      - name: variables
-        type: Struct
-        nullable: true
-        description: Collection variables (JSON structure)
-        expr:
-          kind: path
-          path: [variable]
-      - name: auth
-        type: Struct
-        nullable: true
-        description: Collection-level authentication configuration (JSON)
-        expr:
-          kind: path
-          path: [auth]
-      - name: events
-        type: Struct
-        nullable: true
-        description: Collection events (prerequest, test scripts) (JSON)
-        expr:
-          kind: path
-          path: [event]
-      - name: folders
-        type: Struct
-        nullable: true
-        description: Nested folder structure within collection (JSON)
-        expr:
-          kind: path
-          path: [item]
 
   - name: collection_requests
-    description: Request-level metadata extracted from collections. Exposes endpoints, HTTP methods, authentication configs, and test scripts. Requires collection_uid filter to prevent expensive scans.
+    description: >-
+      Top-level request metadata extracted from a single collection. Exposes
+      endpoints, HTTP methods, headers, and body configuration. Requires
+      collection_uid filter. Note: v1 only returns top-level items; requests
+      nested inside folders are not flattened.
     fetch_limit_default: 25
     filters:
       - name: collection_uid
         required: true
     request:
       method: GET
-      path: /collections/{collection_uid}
-      path_params:
-        collection_uid:
-          from: filter
-          key: collection_uid
+      path: /collections/{{filter.collection_uid}}
     response:
-      rows_path: [item]
+      rows_path: [collection, item]
+      allow_404_empty: true
+    pagination:
+      mode: none
     columns:
       - name: id
         type: Utf8
-        nullable: false
+        nullable: true
         description: Request unique identifier
         expr:
           kind: path
@@ -309,12 +282,12 @@ tables:
         nullable: false
         description: Parent collection UID
         expr:
-          kind: context
+          kind: from_filter
           key: collection_uid
       - name: name
         type: Utf8
         nullable: false
-        description: Request name
+        description: Request or folder name
         expr:
           kind: path
           path: [name]
@@ -331,7 +304,7 @@ tables:
         description: Request URL string or raw URL
         expr:
           kind: path
-          path: [request, url]
+          path: [request, url, raw]
       - name: description
         type: Utf8
         nullable: true
@@ -339,13 +312,6 @@ tables:
         expr:
           kind: path
           path: [request, description]
-      - name: folder_name
-        type: Utf8
-        nullable: true
-        description: Parent folder name if nested
-        expr:
-          kind: path
-          path: [__folder_name]
       - name: protocol
         type: Utf8
         nullable: true
@@ -354,61 +320,54 @@ tables:
           kind: path
           path: [request, url, protocol]
       - name: headers
-        type: Struct
+        type: Json
         nullable: true
-        description: Request headers (JSON structure)
+        description: Request headers (JSON array)
         expr:
           kind: path
           path: [request, header]
       - name: body
-        type: Struct
+        type: Json
         nullable: true
         description: Request body configuration (JSON)
         expr:
           kind: path
           path: [request, body]
       - name: auth
-        type: Struct
+        type: Json
         nullable: true
         description: Request-level authentication (JSON)
         expr:
           kind: path
           path: [request, auth]
       - name: scripts
-        type: Struct
+        type: Json
         nullable: true
-        description: Pre-request and test scripts (JSON)
+        description: Pre-request and test scripts (JSON array)
         expr:
           kind: path
           path: [event]
       - name: responses
-        type: Struct
+        type: Json
         nullable: true
-        description: Example responses (JSON)
+        description: Example responses (JSON array)
         expr:
           kind: path
           path: [response]
 
   - name: environments
-    description: Postman environments containing variable groups for testing and deployment workflows. Allows parameterization of requests across different deployment targets.
+    description: >-
+      Postman environments containing variable groups for testing and
+      deployment workflows. Allows parameterization of requests across
+      different deployment targets.
     fetch_limit_default: 25
     request:
       method: GET
       path: /environments
-      query:
-        - name: limit
-          from: limit
-        - name: offset
-          from: offset
     response:
       rows_path: [environments]
     pagination:
-      mode: offset
-      offset_param: offset
-      page_size:
-        default: 25
-        max: 100
-        query_param: limit
+      mode: none
     columns:
       - name: id
         type: Utf8
@@ -450,43 +409,35 @@ tables:
         nullable: true
         description: Environment creation timestamp (ISO 8601)
         expr:
-          kind: path
-          path: [createdAt]
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [createdAt]
       - name: updated_at
         type: Timestamp
         nullable: true
         description: Environment last updated timestamp (ISO 8601)
         expr:
-          kind: path
-          path: [updatedAt]
-      - name: variables
-        type: Struct
-        nullable: true
-        description: Environment variables (JSON structure). Secret values are masked in v1.
-        expr:
-          kind: path
-          path: [values]
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [updatedAt]
 
   - name: monitors
-    description: API monitors configured for continuous testing and health checking. Enables API reliability analytics and incident summarization. Important for API governance workflows.
+    description: >-
+      API monitors configured for continuous testing and health checking.
+      Enables API reliability analytics and incident summarization. Important
+      for API governance workflows.
     fetch_limit_default: 25
     request:
       method: GET
       path: /monitors
-      query:
-        - name: limit
-          from: limit
-        - name: offset
-          from: offset
     response:
       rows_path: [monitors]
     pagination:
-      mode: offset
-      offset_param: offset
-      page_size:
-        default: 25
-        max: 100
-        query_param: limit
+      mode: none
     columns:
       - name: id
         type: Utf8
@@ -508,16 +459,16 @@ tables:
         description: Associated collection UID
         expr:
           kind: path
-          path: [collection, uid]
+          path: [collectionUid]
       - name: environment_uid
         type: Utf8
         nullable: true
         description: Associated environment UID
         expr:
           kind: path
-          path: [environment, uid]
+          path: [environmentUid]
       - name: schedule
-        type: Struct
+        type: Json
         nullable: true
         description: Monitor execution schedule configuration (JSON)
         expr:
@@ -535,15 +486,21 @@ tables:
         nullable: true
         description: Monitor creation timestamp (ISO 8601)
         expr:
-          kind: path
-          path: [createdAt]
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [createdAt]
       - name: updated_at
         type: Timestamp
         nullable: true
         description: Monitor last updated timestamp (ISO 8601)
         expr:
-          kind: path
-          path: [updatedAt]
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [updatedAt]
       - name: status
         type: Utf8
         nullable: true
