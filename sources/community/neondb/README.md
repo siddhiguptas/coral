@@ -42,7 +42,7 @@ Top-level Neon project inventory.
 
 Optional filters:
 - `org_id`
-- `search`
+- `search`: Substring match on project name or ID
 
 Organization-scoped API keys may require `org_id`. Query `neondb.organizations` first to find it.
 
@@ -55,6 +55,9 @@ Branch inventory for a single Neon project.
 - Preview and development environment discovery
 - Default and protected branch inspection
 - Branch topology through `parent_id`
+
+Optional filters:
+- `search`: Substring match on branch name or ID
 
 ### `databases`
 Database metadata for a single Neon branch.
