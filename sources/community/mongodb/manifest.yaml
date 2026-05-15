@@ -1,0 +1,698 @@
+name: mongodb
+version: 0.1.0
+dsl_version: 3
+backend: http
+description: >-
+  Query MongoDB Atlas organizations, projects, clusters, database users,
+  alerts, project events, audit configuration, and process inventory.
+base_url: https://cloud.mongodb.com/api/atlas/v2
+inputs:
+  MONGODB_ATLAS_ACCESS_TOKEN:
+    kind: secret
+    hint: |
+      MongoDB Atlas Administration API OAuth access token. Create it from an
+      Atlas service account client ID and secret using the OAuth client
+      credentials flow at https://cloud.mongodb.com/api/oauth/token. The token
+      is sent as `Authorization: Bearer <MONGODB_ATLAS_ACCESS_TOKEN>` and is
+      valid for 1 hour. Grant the service account least-privilege read roles,
+      such as Organization Member and Project Read Only for inventory tables;
+      `audit_config` requires Project Owner in Atlas. The calling IP must also
+      be allowed by the service account API access list.
+auth:
+  type: HeaderAuth
+  headers:
+    - name: Authorization
+      from: template
+      template: Bearer {{input.MONGODB_ATLAS_ACCESS_TOKEN}}
+request_headers:
+  - name: Accept
+    from: literal
+    value: application/vnd.atlas.2025-03-12+json
+rate_limit:
+  remaining_header: RateLimit-Remaining
+test_queries:
+  - SELECT * FROM mongodb.organizations LIMIT 1
+  - SELECT * FROM mongodb.projects LIMIT 1
+tables:
+  - name: organizations
+    description: MongoDB Atlas organizations visible to the service account.
+    guide: |
+      Use this table to validate credentials and find `org_id` values. Atlas
+      service-account tokens identify an application rather than an interactive
+      user, so this source uses organizations and projects for context
+      discovery instead of exposing a current-user profile.
+    fetch_limit_default: 100
+    request:
+      method: GET
+      path: /orgs
+    response:
+      rows_path: [results]
+    pagination:
+      mode: page
+      page_size:
+        default: 100
+        max: 500
+        query_param: itemsPerPage
+      page_param: pageNum
+      page_start: 1
+      page_step: 1
+      max_pages: 20
+    columns:
+      - name: org_id
+        type: Utf8
+        nullable: false
+        description: Atlas organization ID.
+        expr:
+          kind: path
+          path: [id]
+      - name: org_name
+        type: Utf8
+        nullable: false
+        description: Atlas organization name.
+        expr:
+          kind: path
+          path: [name]
+      - name: created_at
+        type: Timestamp
+        nullable: true
+        description: Organization creation timestamp, when returned by Atlas.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [created]
+
+  - name: projects
+    description: MongoDB Atlas projects visible to the service account.
+    guide: |
+      Projects are also called groups in Atlas API paths. Use `project_id`
+      from this table when querying project-scoped tables such as `clusters`,
+      `database_users`, `alerts`, `project_events`, `audit_config`, and
+      `processes`.
+    fetch_limit_default: 100
+    request:
+      method: GET
+      path: /groups
+    response:
+      rows_path: [results]
+    pagination:
+      mode: page
+      page_size:
+        default: 100
+        max: 500
+        query_param: itemsPerPage
+      page_param: pageNum
+      page_start: 1
+      page_step: 1
+      max_pages: 50
+    columns:
+      - name: project_id
+        type: Utf8
+        nullable: false
+        description: Atlas project ID. This is the groupId used in Atlas API paths.
+        expr:
+          kind: path
+          path: [id]
+      - name: project_name
+        type: Utf8
+        nullable: false
+        description: Atlas project name.
+        expr:
+          kind: path
+          path: [name]
+      - name: org_id
+        type: Utf8
+        nullable: true
+        description: Parent Atlas organization ID.
+        expr:
+          kind: path
+          path: [orgId]
+      - name: cluster_count
+        type: Int64
+        nullable: true
+        description: Number of clusters reported for this project.
+        expr:
+          kind: path
+          path: [clusterCount]
+      - name: created_at
+        type: Timestamp
+        nullable: true
+        description: Project creation timestamp, when returned by Atlas.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [created]
+
+  - name: clusters
+    description: MongoDB Atlas cluster inventory for one project.
+    guide: |
+      Requires `project_id` from `mongodb.projects`. This table exposes
+      infrastructure metadata only; it does not connect to MongoDB clusters or
+      read collection documents.
+    fetch_limit_default: 100
+    filters:
+      - name: project_id
+        required: true
+    request:
+      method: GET
+      path: /groups/{{filter.project_id}}/clusters
+    response:
+      rows_path: [results]
+    pagination:
+      mode: page
+      page_size:
+        default: 100
+        max: 500
+        query_param: itemsPerPage
+      page_param: pageNum
+      page_start: 1
+      page_step: 1
+      max_pages: 20
+    columns:
+      - name: project_id
+        type: Utf8
+        nullable: false
+        description: Parent Atlas project ID.
+        expr:
+          kind: from_filter
+          key: project_id
+      - name: cluster_id
+        type: Utf8
+        nullable: true
+        description: Atlas cluster ID, when returned by Atlas.
+        expr:
+          kind: path
+          path: [id]
+      - name: cluster_name
+        type: Utf8
+        nullable: false
+        description: Atlas cluster name.
+        expr:
+          kind: path
+          path: [name]
+      - name: cluster_type
+        type: Utf8
+        nullable: true
+        description: Cluster topology type.
+        expr:
+          kind: path
+          path: [clusterType]
+      - name: mongo_version
+        type: Utf8
+        nullable: true
+        description: MongoDB server version configured for the cluster.
+        expr:
+          kind: path
+          path: [mongoDBVersion]
+      - name: state_name
+        type: Utf8
+        nullable: true
+        description: Current Atlas cluster state.
+        expr:
+          kind: path
+          path: [stateName]
+      - name: provider_name
+        type: Utf8
+        nullable: true
+        description: Cloud provider for the cluster.
+        expr:
+          kind: path
+          path: [providerSettings, providerName]
+      - name: region_name
+        type: Utf8
+        nullable: true
+        description: Primary provider region for the cluster.
+        expr:
+          kind: path
+          path: [providerSettings, regionName]
+      - name: disk_size_gb
+        type: Float64
+        nullable: true
+        description: Cluster disk size in gigabytes.
+        expr:
+          kind: path
+          path: [diskSizeGB]
+      - name: paused
+        type: Boolean
+        nullable: true
+        description: Whether the cluster is paused.
+        expr:
+          kind: path
+          path: [paused]
+      - name: created_at
+        type: Timestamp
+        nullable: true
+        description: Cluster creation timestamp.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [createDate]
+
+  - name: database_users
+    description: MongoDB Atlas database user metadata for one project.
+    guide: |
+      Requires `project_id` from `mongodb.projects`. This table intentionally
+      exposes database user metadata only. It does not expose passwords,
+      generated credentials, connection strings, tokens, or cluster data.
+    fetch_limit_default: 100
+    filters:
+      - name: project_id
+        required: true
+    request:
+      method: GET
+      path: /groups/{{filter.project_id}}/databaseUsers
+    response:
+      rows_path: [results]
+    pagination:
+      mode: page
+      page_size:
+        default: 100
+        max: 500
+        query_param: itemsPerPage
+      page_param: pageNum
+      page_start: 1
+      page_step: 1
+      max_pages: 20
+    columns:
+      - name: project_id
+        type: Utf8
+        nullable: false
+        description: Parent Atlas project ID.
+        expr:
+          kind: from_filter
+          key: project_id
+      - name: username
+        type: Utf8
+        nullable: false
+        description: Database username.
+        expr:
+          kind: path
+          path: [username]
+      - name: auth_database
+        type: Utf8
+        nullable: true
+        description: Authentication database for the database user.
+        expr:
+          kind: path
+          path: [databaseName]
+      - name: ldap_auth_type
+        type: Utf8
+        nullable: true
+        description: LDAP authentication type, when configured.
+        expr:
+          kind: path
+          path: [ldapAuthType]
+      - name: x509_type
+        type: Utf8
+        nullable: true
+        description: X.509 authentication type, when configured.
+        expr:
+          kind: path
+          path: [x509Type]
+      - name: roles
+        type: Json
+        nullable: true
+        description: Database roles assigned to the user.
+        expr:
+          kind: path
+          path: [roles]
+      - name: scopes
+        type: Json
+        nullable: true
+        description: Atlas scopes limiting where this database user applies.
+        expr:
+          kind: path
+          path: [scopes]
+
+  - name: alerts
+    description: MongoDB Atlas alerts for one project.
+    guide: |
+      Requires `project_id` from `mongodb.projects`. Use this table for
+      incident summaries, noisy cluster analysis, and operational timelines.
+    fetch_limit_default: 100
+    filters:
+      - name: project_id
+        required: true
+      - name: status
+      - name: event_type
+    request:
+      method: GET
+      path: /groups/{{filter.project_id}}/alerts
+      query:
+        - name: status
+          from: filter
+          key: status
+        - name: eventTypeName
+          from: filter
+          key: event_type
+    response:
+      rows_path: [results]
+    pagination:
+      mode: page
+      page_size:
+        default: 100
+        max: 500
+        query_param: itemsPerPage
+      page_param: pageNum
+      page_start: 1
+      page_step: 1
+      max_pages: 50
+    columns:
+      - name: project_id
+        type: Utf8
+        nullable: false
+        description: Parent Atlas project ID.
+        expr:
+          kind: from_filter
+          key: project_id
+      - name: alert_id
+        type: Utf8
+        nullable: false
+        description: Atlas alert ID.
+        expr:
+          kind: path
+          path: [id]
+      - name: event_type
+        type: Utf8
+        nullable: true
+        description: Atlas alert event type.
+        expr:
+          kind: path
+          path: [eventTypeName]
+      - name: status
+        type: Utf8
+        nullable: true
+        description: Current alert status.
+        expr:
+          kind: path
+          path: [status]
+      - name: cluster_name
+        type: Utf8
+        nullable: true
+        description: Cluster associated with the alert, when present.
+        expr:
+          kind: path
+          path: [clusterName]
+      - name: replica_set_name
+        type: Utf8
+        nullable: true
+        description: Replica set associated with the alert, when present.
+        expr:
+          kind: path
+          path: [replicaSetName]
+      - name: hostname_and_port
+        type: Utf8
+        nullable: true
+        description: Host associated with the alert, when present.
+        expr:
+          kind: path
+          path: [hostnameAndPort]
+      - name: created_at
+        type: Timestamp
+        nullable: true
+        description: Alert creation timestamp.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [created]
+      - name: updated_at
+        type: Timestamp
+        nullable: true
+        description: Alert update timestamp.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [updated]
+
+  - name: project_events
+    description: MongoDB Atlas project activity events for one project.
+    guide: |
+      Requires `project_id` from `mongodb.projects`. This table provides an
+      infrastructure and governance timeline. It exposes event metadata, not
+      raw audit log files or database documents.
+    fetch_limit_default: 100
+    filters:
+      - name: project_id
+        required: true
+      - name: event_type
+      - name: min_date
+      - name: max_date
+    request:
+      method: GET
+      path: /groups/{{filter.project_id}}/events
+      query:
+        - name: eventType
+          from: filter
+          key: event_type
+        - name: minDate
+          from: filter
+          key: min_date
+        - name: maxDate
+          from: filter
+          key: max_date
+    response:
+      rows_path: [results]
+    pagination:
+      mode: page
+      page_size:
+        default: 100
+        max: 500
+        query_param: itemsPerPage
+      page_param: pageNum
+      page_start: 1
+      page_step: 1
+      max_pages: 50
+    columns:
+      - name: project_id
+        type: Utf8
+        nullable: false
+        description: Parent Atlas project ID.
+        expr:
+          kind: from_filter
+          key: project_id
+      - name: event_id
+        type: Utf8
+        nullable: false
+        description: Atlas event ID.
+        expr:
+          kind: path
+          path: [id]
+      - name: event_type
+        type: Utf8
+        nullable: true
+        description: Atlas event type.
+        expr:
+          kind: path
+          path: [eventTypeName]
+      - name: username
+        type: Utf8
+        nullable: true
+        description: Atlas user or service account associated with the event.
+        expr:
+          kind: path
+          path: [username]
+      - name: created_at
+        type: Timestamp
+        nullable: true
+        description: Event creation timestamp.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [created]
+      - name: target_type
+        type: Utf8
+        nullable: true
+        description: Atlas target resource type, when returned by Atlas.
+        expr:
+          kind: path
+          path: [targetType]
+      - name: target_name
+        type: Utf8
+        nullable: true
+        description: Atlas target resource name, when returned by Atlas.
+        expr:
+          kind: path
+          path: [targetName]
+      - name: raw
+        type: Json
+        nullable: true
+        description: Event metadata returned by Atlas for fields not flattened in v1.
+        expr:
+          kind: current_row
+
+  - name: audit_config
+    description: MongoDB Atlas database auditing configuration for one project.
+    guide: |
+      Requires `project_id` from `mongodb.projects`. Atlas requires Project
+      Owner for this endpoint, and the endpoint is not available for M0, M2,
+      M5, or serverless clusters. This table exposes audit configuration only;
+      it does not fetch compressed audit log streams.
+    fetch_limit_default: 1
+    filters:
+      - name: project_id
+        required: true
+    request:
+      method: GET
+      path: /groups/{{filter.project_id}}/auditLog
+    response:
+      row_strategy: direct
+    pagination:
+      mode: none
+    columns:
+      - name: project_id
+        type: Utf8
+        nullable: false
+        description: Parent Atlas project ID.
+        expr:
+          kind: from_filter
+          key: project_id
+      - name: auditing_enabled
+        type: Boolean
+        nullable: true
+        description: Whether database auditing is enabled for the project.
+        expr:
+          kind: path
+          path: [enabled]
+      - name: audit_authorization_success
+        type: Boolean
+        nullable: true
+        description: Whether successful authorization events are audited.
+        expr:
+          kind: path
+          path: [auditAuthorizationSuccess]
+      - name: configuration_type
+        type: Utf8
+        nullable: true
+        description: Audit filter configuration type.
+        expr:
+          kind: path
+          path: [configurationType]
+      - name: audit_filter
+        type: Utf8
+        nullable: true
+        description: Atlas audit filter JSON string.
+        expr:
+          kind: path
+          path: [auditFilter]
+
+  - name: processes
+    description: MongoDB Atlas process inventory for one project.
+    guide: |
+      Requires `project_id` from `mongodb.projects`. Processes are Atlas
+      monitoring resources such as mongod and mongos hosts. This table provides
+      observability metadata and IDs for future metrics tables without pulling
+      high-volume measurements by default.
+    fetch_limit_default: 100
+    filters:
+      - name: project_id
+        required: true
+    request:
+      method: GET
+      path: /groups/{{filter.project_id}}/processes
+    response:
+      rows_path: [results]
+    pagination:
+      mode: page
+      page_size:
+        default: 100
+        max: 500
+        query_param: itemsPerPage
+      page_param: pageNum
+      page_start: 1
+      page_step: 1
+      max_pages: 20
+    columns:
+      - name: project_id
+        type: Utf8
+        nullable: false
+        description: Parent Atlas project ID.
+        expr:
+          kind: from_filter
+          key: project_id
+      - name: process_id
+        type: Utf8
+        nullable: false
+        description: Atlas process ID.
+        expr:
+          kind: path
+          path: [id]
+      - name: hostname
+        type: Utf8
+        nullable: true
+        description: Process hostname.
+        expr:
+          kind: path
+          path: [hostname]
+      - name: port
+        type: Int64
+        nullable: true
+        description: Process port.
+        expr:
+          kind: path
+          path: [port]
+      - name: type_name
+        type: Utf8
+        nullable: true
+        description: Process role or type, such as REPLICA_PRIMARY.
+        expr:
+          kind: path
+          path: [typeName]
+      - name: version
+        type: Utf8
+        nullable: true
+        description: MongoDB version running on the process.
+        expr:
+          kind: path
+          path: [version]
+      - name: replica_set_name
+        type: Utf8
+        nullable: true
+        description: Replica set name, when present.
+        expr:
+          kind: path
+          path: [replicaSetName]
+      - name: shard_name
+        type: Utf8
+        nullable: true
+        description: Shard name, when present.
+        expr:
+          kind: path
+          path: [shardName]
+      - name: user_alias
+        type: Utf8
+        nullable: true
+        description: Atlas user alias for the process, when present.
+        expr:
+          kind: path
+          path: [userAlias]
+      - name: created_at
+        type: Timestamp
+        nullable: true
+        description: Process creation timestamp.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [created]
+      - name: last_ping_at
+        type: Timestamp
+        nullable: true
+        description: Last Atlas monitoring ping timestamp.
+        expr:
+          kind: format_timestamp
+          input: iso8601
+          expr:
+            kind: path
+            path: [lastPing]
