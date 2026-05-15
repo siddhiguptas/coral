@@ -102,7 +102,12 @@ tables:
     response:
       rows_path: [workspaces]
     pagination:
-      mode: none
+      mode: offset
+      offset_param: offset
+      page_size:
+        default: 25
+        max: 100
+        query_param: limit
     columns:
       - name: id
         type: Utf8
@@ -179,7 +184,12 @@ tables:
     response:
       rows_path: [collections]
     pagination:
-      mode: none
+      mode: offset
+      offset_param: offset
+      page_size:
+        default: 25
+        max: 100
+        query_param: limit
     columns:
       - name: id
         type: Utf8
@@ -268,7 +278,12 @@ tables:
       rows_path: [collection, item]
       allow_404_empty: true
     pagination:
-      mode: none
+      mode: offset
+      offset_param: offset
+      page_size:
+        default: 25
+        max: 100
+        query_param: limit
     columns:
       - name: id
         type: Utf8
@@ -367,7 +382,12 @@ tables:
     response:
       rows_path: [environments]
     pagination:
-      mode: none
+      mode: offset
+      offset_param: offset
+      page_size:
+        default: 25
+        max: 100
+        query_param: limit
     columns:
       - name: id
         type: Utf8
@@ -424,6 +444,13 @@ tables:
           expr:
             kind: path
             path: [updatedAt]
+      - name: variables
+        type: Json
+        nullable: true
+        description: Environment variables (JSON structure). Secret values are masked in v1.
+        expr:
+          kind: path
+          path: [values]
 
   - name: monitors
     description: >-
@@ -437,7 +464,12 @@ tables:
     response:
       rows_path: [monitors]
     pagination:
-      mode: none
+      mode: offset
+      offset_param: offset
+      page_size:
+        default: 25
+        max: 100
+        query_param: limit
     columns:
       - name: id
         type: Utf8
