@@ -160,7 +160,8 @@ tables:
     guide: |
       Use `project_id` from this table to query `branches` and `operations`.
       Organization API keys may require the optional `org_id` filter. Query
-      `organizations` first if Neon returns an org_id-required error.
+      `organizations` first if Neon returns an org_id-required error. The optional
+      `search` filter performs a substring match on project name or ID.
     fetch_limit_default: 100
     filters:
       - name: org_id
@@ -259,7 +260,8 @@ tables:
       Requires `project_id`. Branches are Neon's isolated database timelines
       for production, development, previews, testing, and agent workflows.
       Use `branch_id` from this table to inspect databases, roles, and
-      compute endpoints.
+      compute endpoints. The optional `search` filter performs a substring match
+      on branch name or ID.
     fetch_limit_default: 100
     filters:
       - name: project_id
