@@ -167,4 +167,4 @@ WHERE owner_id IS NULL
 - JSON columns (headers, body, auth, scripts, schedule) contain nested structures queryable with `json_get`, `json_get_str`, etc.
 - Timestamps are stored as proper Timestamp columns derived from ISO 8601 strings
 - Environment variable values are not available from the list endpoint
-- Secret variable values are not exposed for security reasons
+- Note: the Postman API returns secret values as plaintext, so exercise caution when querying environments.

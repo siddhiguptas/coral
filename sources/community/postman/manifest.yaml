@@ -447,7 +447,7 @@ tables:
       - name: variables
         type: Json
         nullable: true
-        description: Environment variables (JSON structure). Secret values are masked in v1.
+        description: "Environment variables (JSON structure). Note: the Postman API returns secret values as plaintext."
         expr:
           kind: path
           path: [values]
